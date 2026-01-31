@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WorkAround ⏳
 
-## Getting Started
+WorkAround is a Chrome extension that helps you maintain productivity by tracking the time spent on websites and blocking distractions once set limits are exceeded.
 
-First, run the development server:
+## 🚀 Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+*   **Time Tracking**: Automatically monitors time spent on the active browser tab.
+*   **Distraction Blocking**: Once you exceed the daily time limit for a site, you will be blocked by a special overlay ("Time's Up!").
+*   **Intuitive Popup**: Quick view of statistics and settings directly from the extension bar.
+*   **Options Panel**: Advanced settings and limit management.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🛠️ Installation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The project is built using Next.js and requires compilation before loading it into the browser.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Requirements
+*   Node.js (version 18 or newer)
+*   npm, yarn, pnpm, or bun
 
-## Learn More
+### Installation Steps
 
-To learn more about Next.js, take a look at the following resources:
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-username/work-around.git
+    cd work-around
+    ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3.  **Build the project:**
+    This command generates the static version of the Next.js app and the background/content extension scripts.
+    ```bash
+    npm run build
+    ```
 
-## Deploy on Vercel
+4.  **Load into Chrome:**
+    *   Open Chrome and navigate to: `chrome://extensions/`
+    *   Enable **Developer mode** in the top right corner.
+    *   Click the **Load unpacked** button.
+    *   Select the `out` folder created in the project directory after the build.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 💻 Development
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+To make changes and develop the project:
+
+1.  Start the development server for the UI (Next.js):
+    ```bash
+    npm run dev
+    ```
+    *   The popup/options interface will be available at `http://localhost:3000`.
+
+2.  To test changes in the extension logic (background/content scripts), you must restart `npm run build` and refresh the extension in `chrome://extensions`.
+
+## 🏗️ Tech Stack
+
+*   **Framework**: [Next.js 16](https://nextjs.org/) (App Router)
+*   **UI Library**: [React 19](https://react.dev/)
+*   **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) + [Radix UI](https://www.radix-ui.com/)
+*   **Browser API**: Manifest V3 (Storage, Alarms, Scripting, Tabs)
+*   **Bundler**: Esbuild (for extension scripts)
+
+## 📄 License
+
+This project is available under the MIT License. See the [LICENSE](LICENSE) file for more details.

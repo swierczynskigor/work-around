@@ -5,11 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { AppSettings, LimitRule, TimeWindow } from "@/domain/models";
 import { DomainInput } from "@/components/DomainInput";
 import { getFaviconUrl } from "@/lib/favicon";
-import { Clock, Trash2, Pencil, Check, X, Plus } from "lucide-react";
+import { Clock, Trash2, Pencil, Check, X, Plus, Sun, Moon, Monitor } from "lucide-react";
+import { useI18n, Theme } from "@/hooks/useI18n";
+import { Language } from "@/lib/i18n";
 
 const SETTINGS_KEY = 'workaround_settings';
 
@@ -20,6 +23,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export default function OptionsPage() {
+  const { t, language, setLanguage, theme, setTheme, availableLanguages } = useI18n();
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isExtension, setIsExtension] = useState(false);
   const [newHostname, setNewHostname] = useState("");
@@ -187,14 +191,11 @@ export default function OptionsPage() {
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <Clock className="w-4 h-4" />
-        <span className="text-sm font-medium">Allowed Hours</span>
+        <span className="text-sm font-medium">{t.options.allowedHours}</span>
         <Button type="button" variant="outline" size="sm" onClick={onAdd} className="ml-auto h-7">
-          <Plus className="w-3 h-3 mr-1" /> Add Window
+          <Plus className="w-3 h-3 mr-1" /> {t.options.addWindow}
         </Button>
       </div>
-      {windows.length === 0 && (
-        <p className="text-xs text-muted-foreground">No time restrictions - accessible all day</p>
-      )}
       {windows.map((tw, index) => (
         <div key={index} className="flex items-center gap-2">
           <Input 
@@ -203,7 +204,7 @@ export default function OptionsPage() {
             onChange={(e) => onUpdate(index, 'start', e.target.value)}
             className="w-[100px] h-8"
           />
-          <span className="text-muted-foreground">to</span>
+          <span className="text-muted-foreground">{t.options.to}</span>
           <Input 
             type="time" 
             value={formatTime(tw.endHour, tw.endMinute)}
@@ -228,21 +229,78 @@ export default function OptionsPage() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-8 max-w-3xl space-y-8">
         <header>
-          <h1 className="text-3xl font-bold">WorkAround Settings</h1>
-          <p className="text-muted-foreground">Manage your productivity rules</p>
-          {!isExtension && (
-            <div className="mt-2 p-3 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 rounded-md text-sm">
-              ⚠️ Not running in extension context. Settings won&apos;t be saved.
-            </div>
-          )}
+          <h1 className="text-3xl font-bold">{t.options.title}</h1>
+          <p className="text-muted-foreground">{t.options.subtitle}</p>
         </header>
         
+        {!isExtension && (
+          <div className="p-3 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 rounded-md text-sm">
+            ⚠️ {t.options.notInExtension}
+          </div>
+        )}
+
+        {/* Extension Settings */}
         <Card>
           <CardHeader>
-            <CardTitle>General</CardTitle>
+            <CardTitle>{t.settings.title}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label>{t.settings.language}</Label>
+              <Select value={language} onValueChange={(val) => setLanguage(val as Language)}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(availableLanguages).map(([code, name]) => (
+                    <SelectItem key={code} value={code}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <Label>{t.settings.theme}</Label>
+              <div className="flex gap-1">
+                <Button 
+                  variant={theme === 'light' ? 'default' : 'outline'} 
+                  size="sm"
+                  onClick={() => setTheme('light')}
+                  className="gap-1"
+                >
+                  <Sun className="w-4 h-4" />
+                  {t.settings.themeLight}
+                </Button>
+                <Button 
+                  variant={theme === 'dark' ? 'default' : 'outline'} 
+                  size="sm"
+                  onClick={() => setTheme('dark')}
+                  className="gap-1"
+                >
+                  <Moon className="w-4 h-4" />
+                  {t.settings.themeDark}
+                </Button>
+                <Button 
+                  variant={theme === 'system' ? 'default' : 'outline'} 
+                  size="sm"
+                  onClick={() => setTheme('system')}
+                  className="gap-1"
+                >
+                  <Monitor className="w-4 h-4" />
+                  {t.settings.themeSystem}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* General Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.options.general}</CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between">
-            <Label htmlFor="tracking-mode">Enable Time Tracking</Label>
+            <Label htmlFor="tracking-mode">{t.options.enableTracking}</Label>
             <Switch 
               id="tracking-mode" 
               checked={settings.isTrackingEnabled} 
@@ -251,9 +309,10 @@ export default function OptionsPage() {
           </CardContent>
         </Card>
 
+        {/* Daily Limits */}
         <Card>
           <CardHeader>
-            <CardTitle>Daily Limits</CardTitle>
+            <CardTitle>{t.options.dailyLimits}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Add new limit form */}
@@ -267,7 +326,7 @@ export default function OptionsPage() {
                 />
                 <Input 
                   type="number" 
-                  placeholder="Minutes" 
+                  placeholder={t.options.minutes}
                   className="w-[100px]"
                   value={newLimitMinutes}
                   onChange={(e) => setNewLimitMinutes(e.target.value)}
@@ -275,7 +334,7 @@ export default function OptionsPage() {
                   min="1"
                 />
                 <Button onClick={handleAddLimit}>
-                  Add
+                  {t.options.addButton}
                 </Button>
               </div>
 
@@ -311,7 +370,7 @@ export default function OptionsPage() {
                           className="w-[100px]"
                           min="1"
                         />
-                        <span className="text-sm text-muted-foreground">min/day</span>
+                        <span className="text-sm text-muted-foreground">{t.options.minPerDay}</span>
                       </div>
 
                       <TimeWindowEditor 
@@ -323,10 +382,10 @@ export default function OptionsPage() {
 
                       <div className="flex gap-2">
                         <Button size="sm" onClick={saveEditing}>
-                          <Check className="w-4 h-4 mr-1" /> Save
+                          <Check className="w-4 h-4 mr-1" /> {t.options.save}
                         </Button>
                         <Button size="sm" variant="outline" onClick={cancelEditing}>
-                          <X className="w-4 h-4 mr-1" /> Cancel
+                          <X className="w-4 h-4 mr-1" /> {t.options.cancel}
                         </Button>
                       </div>
                     </div>
@@ -355,7 +414,7 @@ export default function OptionsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground text-sm">
-                          {Math.round(limit.dailyLimitMs / 60000)} min/day
+                          {Math.round(limit.dailyLimitMs / 60000)} {t.options.minPerDay}
                         </span>
                         <Button 
                           variant="ghost" 
@@ -380,7 +439,7 @@ export default function OptionsPage() {
               ))}
               {settings.limits.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  No limits defined. Add a domain above to get started.
+                  {t.options.noLimits}
                 </p>
               )}
             </div>

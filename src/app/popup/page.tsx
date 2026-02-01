@@ -1,6 +1,7 @@
 "use client";
 
 import { useStats } from "@/hooks/useStats";
+import { useI18n } from "@/hooks/useI18n";
 import { StatsCard } from "@/components/StatsCard";
 import { Button } from "@/components/ui/button";
 import { Settings } from "lucide-react";
@@ -8,7 +9,8 @@ import { formatDuration } from "@/lib/utils";
 import { getFaviconUrl } from "@/lib/favicon";
 
 export default function PopupPage() {
-  const { stats, currentTabStats, currentHostname } = useStats();
+  const { stats, currentTabStats, currentHostname, currentLimit } = useStats();
+  const { t } = useI18n();
 
   // Sort stats by time spent (descending)
   const sortedStats = [...stats].sort((a, b) => b.timeSpentMs - a.timeSpentMs);
@@ -29,7 +31,7 @@ export default function PopupPage() {
   return (
     <div className="w-[350px] h-[500px] bg-background flex flex-col p-4">
       <header className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold">WorkAround</h1>
+        <h1 className="text-xl font-bold">{t.popup.title}</h1>
         <Button variant="ghost" size="icon" onClick={openOptions}>
           <Settings className="h-5 w-5" />
         </Button>
@@ -37,24 +39,23 @@ export default function PopupPage() {
       
       <main className="flex-1 flex flex-col gap-4 overflow-hidden">
         <section className="flex-shrink-0">
-          <h2 className="text-sm text-muted-foreground mb-2">Current Site</h2>
+          <h2 className="text-sm text-muted-foreground mb-2">{t.popup.currentSite}</h2>
           {currentTabStats ? (
-            <StatsCard stats={currentTabStats} />
+            <StatsCard stats={currentTabStats} limit={currentLimit} translations={t} />
           ) : (
             <div className="text-sm text-center p-4 border rounded-md">
               {currentHostname ? (
                   <div className="flex flex-col gap-2">
-                      <span>No stats for <strong>{currentHostname}</strong></span>
-                      <p className="text-xs text-muted-foreground">Go to Options to set a limit.</p>
+                      <span>{t.popup.noStats} <strong>{currentHostname}</strong></span>
+                      <p className="text-xs text-muted-foreground">{t.popup.goToOptions}</p>
                   </div>
-              ) : "Not a valid site to track"}
+              ) : t.popup.notValidSite}
             </div>
           )}
         </section>
 
         <section className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <h2 className="text-sm text-muted-foreground mb-2 flex-shrink-0">Top Sites Today</h2>
-          {/* Simple div with overflow-auto instead of ScrollArea for reliability */}
+          <h2 className="text-sm text-muted-foreground mb-2 flex-shrink-0">{t.popup.topSitesToday}</h2>
           <div className="flex-1 border rounded-md overflow-y-auto">
             <div className="p-2 space-y-2">
               {sortedStats.map(stat => (
@@ -72,7 +73,7 @@ export default function PopupPage() {
                 </div>
               ))}
               {sortedStats.length === 0 && (
-                 <div className="text-muted-foreground text-center py-4">No activity recorded yet</div>
+                 <div className="text-muted-foreground text-center py-4">{t.popup.noActivity}</div>
               )}
             </div>
           </div>

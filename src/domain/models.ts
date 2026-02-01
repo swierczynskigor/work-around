@@ -20,6 +20,18 @@ export interface LimitRule {
   hostname: string;
   /** Maximum allowed time per day in milliseconds */
   dailyLimitMs: number;
+  /** 
+   * Optional: Time window when access is allowed.
+   * If set, the site is only accessible during this window.
+   * Example: { startHour: 16, startMinute: 0, endHour: 23, endMinute: 0 }
+   * means YouTube only after 4pm
+   */
+  allowedTimeWindow?: {
+    startHour: number;   // 0-23
+    startMinute: number; // 0-59
+    endHour: number;     // 0-23
+    endMinute: number;   // 0-59
+  };
 }
 
 /**

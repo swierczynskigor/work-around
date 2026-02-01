@@ -36,21 +36,43 @@ export class BlockingService implements IBlockingService {
     // 1. Check Daily Limits
     const limitRule = this.findMatchingLimit(hostname, settings.limits);
     if (limitRule) {
+      // Check if outside allowed time window
+      if (limitRule.allowedTimeWindow && !this.isInAllowedTimeWindow(limitRule.allowedTimeWindow)) {
+        return true; // Blocked - outside allowed hours
+      }
+
+      // Check if daily limit exceeded
       const stats = await this.storageRepo.getStats(hostname);
       if (stats && stats.timeSpentMs >= limitRule.dailyLimitMs) {
         return true;
       }
     }
 
-    // 2. Check Time Windows (Simplified for now, assuming window applies to ALL sites or logic)
-    // The current model puts windows in global settings, so they block everything? 
-    // Or maybe we treat them as "Focus Mode" windows.
-    // Let's assume they block everything for now based on the model.
+    // 2. Check Global Blocked Windows (Focus Mode)
     if (this.isInBlockedWindow(settings)) {
         return true;
     }
 
     return false;
+  }
+
+  /**
+   * Check if current time is within the allowed time window.
+   * Returns true if access is allowed, false if blocked.
+   */
+  private isInAllowedTimeWindow(window: { startHour: number; startMinute: number; endHour: number; endMinute: number }): boolean {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const startMinutes = window.startHour * 60 + window.startMinute;
+    const endMinutes = window.endHour * 60 + window.endMinute;
+
+    if (startMinutes <= endMinutes) {
+      // Normal window (e.g., 16:00 - 23:00)
+      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    } else {
+      // Overnight window (e.g., 23:00 - 07:00)
+      return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+    }
   }
 
   async getRemainingTime(hostname: string): Promise<number> {

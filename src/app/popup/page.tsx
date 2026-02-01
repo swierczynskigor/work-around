@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Settings } from "lucide-react";
 import { formatDuration } from "@/lib/utils";
+import { getFaviconUrl } from "@/lib/favicon";
 
 export default function PopupPage() {
   const { stats, currentTabStats, currentHostname } = useStats();
@@ -55,12 +56,17 @@ export default function PopupPage() {
 
         <section className="flex-1 flex flex-col min-h-0">
           <h2 className="text-sm text-muted-foreground mb-2">Top Sites Today</h2>
-          <ScrollArea className="flex-1 border rounded-md p-2">
-            <div className="space-y-2">
+          <ScrollArea className="flex-1 border rounded-md">
+            <div className="p-2 space-y-2">
               {sortedStats.map(stat => (
                 <div key={stat.hostname} className="flex justify-between items-center text-sm p-2 bg-muted/50 rounded">
                    <div className="flex items-center gap-2 overflow-hidden">
-                      {stat.favIconUrl && <img src={stat.favIconUrl} className="w-4 h-4" />}
+                      <img 
+                        src={getFaviconUrl(stat.hostname, 16)} 
+                        alt="" 
+                        className="w-4 h-4 flex-shrink-0" 
+                        loading="lazy"
+                      />
                       <span className="truncate max-w-[150px]">{stat.hostname}</span>
                    </div>
                    <span className="font-mono">{formatDuration(stat.timeSpentMs)}</span>

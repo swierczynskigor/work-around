@@ -1,16 +1,40 @@
 import { IBlockingService } from '../domain/services';
 import { IStorageRepository } from '../domain/repositories';
-import { AppSettings, SiteStats } from '../domain/models';
+import { AppSettings, SiteStats, LimitRule } from '../domain/models';
 
 export class BlockingService implements IBlockingService {
   constructor(private storageRepo: IStorageRepository) {}
+
+  /**
+   * Checks if hostname matches a limit rule.
+   * Handles subdomain matching (www.facebook.com matches facebook.com rule)
+   */
+  private findMatchingLimit(hostname: string, limits: LimitRule[]): LimitRule | undefined {
+    // First try exact match
+    const exact = limits.find(l => l.hostname === hostname);
+    if (exact) return exact;
+
+    // Try without www prefix
+    const withoutWww = hostname.replace(/^www\./, '');
+    const matchWithoutWww = limits.find(l => l.hostname === withoutWww);
+    if (matchWithoutWww) return matchWithoutWww;
+
+    // Check if hostname ends with any limit domain (for subdomains)
+    for (const limit of limits) {
+      if (hostname === limit.hostname || hostname.endsWith('.' + limit.hostname)) {
+        return limit;
+      }
+    }
+    
+    return undefined;
+  }
 
   async isBlocked(hostname: string): Promise<boolean> {
     const settings = await this.storageRepo.getSettings();
     if (!settings.isTrackingEnabled) return false;
 
     // 1. Check Daily Limits
-    const limitRule = settings.limits.find(l => l.hostname === hostname);
+    const limitRule = this.findMatchingLimit(hostname, settings.limits);
     if (limitRule) {
       const stats = await this.storageRepo.getStats(hostname);
       if (stats && stats.timeSpentMs >= limitRule.dailyLimitMs) {
@@ -31,7 +55,7 @@ export class BlockingService implements IBlockingService {
 
   async getRemainingTime(hostname: string): Promise<number> {
     const settings = await this.storageRepo.getSettings();
-    const limitRule = settings.limits.find(l => l.hostname === hostname);
+    const limitRule = this.findMatchingLimit(hostname, settings.limits);
     
     if (!limitRule) return -1;
 

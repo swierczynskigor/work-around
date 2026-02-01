@@ -14,10 +14,16 @@ export default function PopupPage() {
   const sortedStats = [...stats].sort((a, b) => b.timeSpentMs - a.timeSpentMs);
 
   const openOptions = () => {
-    if (chrome.runtime && chrome.runtime.openOptionsPage) {
-      chrome.runtime.openOptionsPage();
-    } else {
-      window.open('/options.html', '_blank');
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.openOptionsPage) {
+        chrome.runtime.openOptionsPage();
+      } else {
+        // Fallback for non-extension context
+        window.open('./options.html', '_blank');
+      }
+    } catch (e) {
+      console.error('Failed to open options:', e);
+      window.open('./options.html', '_blank');
     }
   };
 
@@ -37,7 +43,12 @@ export default function PopupPage() {
             <StatsCard stats={currentTabStats} />
           ) : (
             <div className="text-sm text-center p-4 border rounded-md">
-              {currentHostname ? `No stats for ${currentHostname}` : "Not a valid site"}
+              {currentHostname ? (
+                  <div className="flex flex-col gap-2">
+                      <span>No stats for <strong>{currentHostname}</strong></span>
+                      <p className="text-xs text-muted-foreground">Go to Options to set a limit.</p>
+                  </div>
+              ) : "Not a valid site to track"}
             </div>
           )}
         </section>

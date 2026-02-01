@@ -3,7 +3,6 @@
 import { useStats } from "@/hooks/useStats";
 import { StatsCard } from "@/components/StatsCard";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Settings } from "lucide-react";
 import { formatDuration } from "@/lib/utils";
 import { getFaviconUrl } from "@/lib/favicon";
@@ -19,7 +18,6 @@ export default function PopupPage() {
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.openOptionsPage) {
         chrome.runtime.openOptionsPage();
       } else {
-        // Fallback for non-extension context
         window.open('./options.html', '_blank');
       }
     } catch (e) {
@@ -37,8 +35,8 @@ export default function PopupPage() {
         </Button>
       </header>
       
-      <main className="flex-1 overflow-hidden flex flex-col gap-4">
-        <section>
+      <main className="flex-1 flex flex-col gap-4 overflow-hidden">
+        <section className="flex-shrink-0">
           <h2 className="text-sm text-muted-foreground mb-2">Current Site</h2>
           {currentTabStats ? (
             <StatsCard stats={currentTabStats} />
@@ -54,9 +52,10 @@ export default function PopupPage() {
           )}
         </section>
 
-        <section className="flex-1 flex flex-col min-h-0">
-          <h2 className="text-sm text-muted-foreground mb-2">Top Sites Today</h2>
-          <ScrollArea className="flex-1 border rounded-md">
+        <section className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <h2 className="text-sm text-muted-foreground mb-2 flex-shrink-0">Top Sites Today</h2>
+          {/* Simple div with overflow-auto instead of ScrollArea for reliability */}
+          <div className="flex-1 border rounded-md overflow-y-auto">
             <div className="p-2 space-y-2">
               {sortedStats.map(stat => (
                 <div key={stat.hostname} className="flex justify-between items-center text-sm p-2 bg-muted/50 rounded">
@@ -69,14 +68,14 @@ export default function PopupPage() {
                       />
                       <span className="truncate max-w-[150px]">{stat.hostname}</span>
                    </div>
-                   <span className="font-mono">{formatDuration(stat.timeSpentMs)}</span>
+                   <span className="font-mono text-xs">{formatDuration(stat.timeSpentMs)}</span>
                 </div>
               ))}
               {sortedStats.length === 0 && (
                  <div className="text-muted-foreground text-center py-4">No activity recorded yet</div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </section>
       </main>
     </div>

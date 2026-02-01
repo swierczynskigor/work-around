@@ -35,6 +35,17 @@ async function commitCurrentSession() {
   startTime = Date.now();
 }
 
+// Get current session info (for popup to query)
+function getCurrentSessionInfo() {
+  if (!activeHostname || !startTime) {
+    return { hostname: null, currentSessionMs: 0 };
+  }
+  return {
+    hostname: activeHostname,
+    currentSessionMs: Date.now() - startTime
+  };
+}
+
 async function handleTabSwitch(tabId: number) {
   await commitCurrentSession();
 
@@ -89,5 +100,13 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
-console.log('Background worker started');
+// Message handler for popup to get current session info
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'GET_CURRENT_SESSION') {
+    const info = getCurrentSessionInfo();
+    sendResponse(info);
+    return true; // Keep channel open for async response
+  }
+});
 
+console.log('Background worker started');

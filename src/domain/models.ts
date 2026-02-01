@@ -13,6 +13,16 @@ export interface SiteStats {
 }
 
 /**
+ * Defines a time window (start to end time)
+ */
+export interface TimeWindow {
+  startHour: number;   // 0-23
+  startMinute: number; // 0-59
+  endHour: number;     // 0-23
+  endMinute: number;   // 0-59
+}
+
+/**
  * Defines a time limit rule for a specific domain.
  */
 export interface LimitRule {
@@ -21,18 +31,21 @@ export interface LimitRule {
   /** Maximum allowed time per day in milliseconds */
   dailyLimitMs: number;
   /** 
-   * Optional: Time window when access is allowed.
-   * If set, the site is only accessible during this window.
-   * Example: { startHour: 16, startMinute: 0, endHour: 23, endMinute: 0 }
-   * means YouTube only after 4pm
+   * Optional: Time windows when access is allowed.
+   * If set, the site is only accessible during these windows.
+   * Multiple windows supported (e.g., lunch break AND evening)
    */
-  allowedTimeWindow?: {
-    startHour: number;   // 0-23
-    startMinute: number; // 0-59
-    endHour: number;     // 0-23
-    endMinute: number;   // 0-59
-  };
+  allowedTimeWindows?: TimeWindow[];
 }
+
+/**
+ * Reason why a site is blocked
+ */
+export type BlockReason = 
+  | 'none'           // Not blocked
+  | 'time_limit'     // Daily time limit exceeded
+  | 'outside_hours'  // Outside allowed time window
+  | 'focus_mode';    // Global focus mode active
 
 /**
  * Defines a recurring time window when access should be blocked entirely.

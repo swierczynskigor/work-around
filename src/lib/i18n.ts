@@ -36,6 +36,8 @@ export interface Translations {
     save: string;
     cancel: string;
     to: string;
+    tabLimits: string;
+    tabSettings: string;
   };
   settings: {
     title: string;
@@ -91,6 +93,8 @@ const translations: Record<Language, Translations> = {
       save: "Save",
       cancel: "Cancel",
       to: "to",
+      tabLimits: "Limits",
+      tabSettings: "Settings",
     },
     settings: {
       title: "Extension Settings",
@@ -144,6 +148,8 @@ const translations: Record<Language, Translations> = {
       save: "Zapisz",
       cancel: "Anuluj",
       to: "do",
+      tabLimits: "Limity",
+      tabSettings: "Ustawienia",
     },
     settings: {
       title: "Ustawienia rozszerzenia",
@@ -197,6 +203,8 @@ const translations: Record<Language, Translations> = {
       save: "Speichern",
       cancel: "Abbrechen",
       to: "bis",
+      tabLimits: "Limits",
+      tabSettings: "Einstellungen",
     },
     settings: {
       title: "Erweiterungseinstellungen",
@@ -250,6 +258,8 @@ const translations: Record<Language, Translations> = {
       save: "Guardar",
       cancel: "Cancelar",
       to: "a",
+      tabLimits: "Límites",
+      tabSettings: "Configuración",
     },
     settings: {
       title: "Configuración de extensión",
@@ -303,6 +313,8 @@ const translations: Record<Language, Translations> = {
       save: "Sauvegarder",
       cancel: "Annuler",
       to: "à",
+      tabLimits: "Limites",
+      tabSettings: "Paramètres",
     },
     settings: {
       title: "Paramètres d'extension",

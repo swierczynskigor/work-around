@@ -122,4 +122,47 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Custom scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.7 0 0 / 30%);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background 0.2s;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.6 0 0 / 50%);
+    background-clip: padding-box;
+  }
+  
+  .dark ::-webkit-scrollbar-thumb {
+    background: oklch(0.5 0 0 / 40%);
+    background-clip: padding-box;
+  }
+  
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.6 0 0 / 60%);
+    background-clip: padding-box;
+  }
+  
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.7 0 0 / 30%) transparent;
+  }
+  
+  .dark * {
+    scrollbar-color: oklch(0.5 0 0 / 40%) transparent;
+  }
 }

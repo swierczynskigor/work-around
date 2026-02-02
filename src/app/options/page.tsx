@@ -1,16 +1,18 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useState, useEffect } from "react";
 import { AppSettings, LimitRule, TimeWindow } from "@/domain/models";
 import { DomainInput } from "@/components/DomainInput";
 import { getFaviconUrl } from "@/lib/favicon";
-import { Clock, Trash2, Pencil, Check, X, Plus, Sun, Moon, Monitor } from "lucide-react";
+import { Clock, Trash2, Pencil, Check, X, Plus, Sun, Moon, Monitor, Settings, ListChecks } from "lucide-react";
 import { useI18n, Theme } from "@/hooks/useI18n";
 import { Language } from "@/lib/i18n";
 
@@ -227,7 +229,7 @@ export default function OptionsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-8 max-w-3xl space-y-8">
+      <div className="container mx-auto p-8 max-w-3xl space-y-6">
         <header>
           <h1 className="text-3xl font-bold">{t.options.title}</h1>
           <p className="text-muted-foreground">{t.options.subtitle}</p>
@@ -239,212 +241,220 @@ export default function OptionsPage() {
           </div>
         )}
 
-        {/* Extension Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.settings.title}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label>{t.settings.language}</Label>
-              <Select value={language} onValueChange={(val) => setLanguage(val as Language)}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(availableLanguages).map(([code, name]) => (
-                    <SelectItem key={code} value={code}>{name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <Label>{t.settings.theme}</Label>
-              <div className="flex gap-1">
-                <Button 
-                  variant={theme === 'light' ? 'default' : 'outline'} 
-                  size="sm"
-                  onClick={() => setTheme('light')}
-                  className="gap-1"
-                >
-                  <Sun className="w-4 h-4" />
-                  {t.settings.themeLight}
-                </Button>
-                <Button 
-                  variant={theme === 'dark' ? 'default' : 'outline'} 
-                  size="sm"
-                  onClick={() => setTheme('dark')}
-                  className="gap-1"
-                >
-                  <Moon className="w-4 h-4" />
-                  {t.settings.themeDark}
-                </Button>
-                <Button 
-                  variant={theme === 'system' ? 'default' : 'outline'} 
-                  size="sm"
-                  onClick={() => setTheme('system')}
-                  className="gap-1"
-                >
-                  <Monitor className="w-4 h-4" />
-                  {t.settings.themeSystem}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* General Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.options.general}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between">
-            <Label htmlFor="tracking-mode">{t.options.enableTracking}</Label>
-            <Switch 
-              id="tracking-mode" 
-              checked={settings.isTrackingEnabled} 
-              onCheckedChange={handleToggleTracking} 
-            />
-          </CardContent>
-        </Card>
+        <Tabs defaultValue="limits" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="limits" className="gap-2">
+              <ListChecks className="w-4 h-4" />
+              {t.options.tabLimits}
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="gap-2">
+              <Settings className="w-4 h-4" />
+              {t.options.tabSettings}
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Daily Limits */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.options.dailyLimits}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Add new limit form */}
-            <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
-              <div className="flex gap-2">
-                <DomainInput 
-                  value={newHostname}
-                  onChange={setNewHostname}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddLimit()}
-                  className="flex-1"
+          {/* Limits Tab */}
+          <TabsContent value="limits" className="space-y-6">
+            {/* General Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.options.general}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <Label htmlFor="tracking-mode">{t.options.enableTracking}</Label>
+                <Switch 
+                  id="tracking-mode" 
+                  checked={settings.isTrackingEnabled} 
+                  onCheckedChange={handleToggleTracking} 
                 />
-                <Input 
-                  type="number" 
-                  placeholder={t.options.minutes}
-                  className="w-[100px]"
-                  value={newLimitMinutes}
-                  onChange={(e) => setNewLimitMinutes(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddLimit()}
-                  min="1"
-                />
-                <Button onClick={handleAddLimit}>
-                  {t.options.addButton}
-                </Button>
-              </div>
+              </CardContent>
+            </Card>
 
-              <TimeWindowEditor 
-                windows={newTimeWindows}
-                onAdd={addNewTimeWindow}
-                onUpdate={updateNewTimeWindow}
-                onRemove={removeNewTimeWindow}
-              />
-            </div>
+            {/* Daily Limits */}
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.options.dailyLimits}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Add new limit form */}
+                <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+                  <div className="flex gap-2">
+                    <DomainInput 
+                      value={newHostname}
+                      onChange={setNewHostname}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddLimit()}
+                      className="flex-1"
+                    />
+                    <Input 
+                      type="number" 
+                      placeholder={t.options.minutes}
+                      className="w-[100px]"
+                      value={newLimitMinutes}
+                      onChange={(e) => setNewLimitMinutes(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddLimit()}
+                      min="1"
+                    />
+                    <Button onClick={handleAddLimit}>
+                      {t.options.addButton}
+                    </Button>
+                  </div>
 
-            {/* Limits list */}
-            <div className="space-y-2">
-              {settings.limits.map(limit => (
-                <div key={limit.hostname} className="border rounded-md bg-muted/30">
-                  {editingHostname === limit.hostname ? (
-                    // Edit mode
-                    <div className="p-3 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <img 
-                          src={getFaviconUrl(limit.hostname, 20)} 
-                          alt="" 
-                          className="w-5 h-5"
-                        />
-                        <span className="font-medium">{limit.hostname}</span>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <Input 
-                          type="number" 
-                          value={editMinutes}
-                          onChange={(e) => setEditMinutes(e.target.value)}
-                          className="w-[100px]"
-                          min="1"
-                        />
-                        <span className="text-sm text-muted-foreground">{t.options.minPerDay}</span>
-                      </div>
+                  <TimeWindowEditor 
+                    windows={newTimeWindows}
+                    onAdd={addNewTimeWindow}
+                    onUpdate={updateNewTimeWindow}
+                    onRemove={removeNewTimeWindow}
+                  />
+                </div>
 
-                      <TimeWindowEditor 
-                        windows={editTimeWindows}
-                        onAdd={addEditTimeWindow}
-                        onUpdate={updateEditTimeWindow}
-                        onRemove={removeEditTimeWindow}
-                      />
+                {/* Limits list */}
+                <div className="space-y-2">
+                  {settings.limits.map(limit => (
+                    <div key={limit.hostname} className="border rounded-md bg-muted/30">
+                      {editingHostname === limit.hostname ? (
+                        // Edit mode
+                        <div className="p-3 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <img 
+                              src={getFaviconUrl(limit.hostname, 20)} 
+                              alt="" 
+                              className="w-5 h-5"
+                            />
+                            <span className="font-medium">{limit.hostname}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <Input 
+                              type="number" 
+                              value={editMinutes}
+                              onChange={(e) => setEditMinutes(e.target.value)}
+                              className="w-[100px]"
+                              min="1"
+                            />
+                            <span className="text-sm text-muted-foreground">{t.options.minPerDay}</span>
+                          </div>
 
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={saveEditing}>
-                          <Check className="w-4 h-4 mr-1" /> {t.options.save}
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={cancelEditing}>
-                          <X className="w-4 h-4 mr-1" /> {t.options.cancel}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    // View mode
-                    <div className="flex items-center justify-between p-3">
-                      <div className="flex items-center gap-3">
-                        <img 
-                          src={getFaviconUrl(limit.hostname, 20)} 
-                          alt="" 
-                          className="w-5 h-5"
-                        />
-                        <div>
-                          <span className="font-medium">{limit.hostname}</span>
-                          {limit.allowedTimeWindows && limit.allowedTimeWindows.length > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
-                              <Clock className="w-3 h-3" />
-                              {limit.allowedTimeWindows.map((tw, i) => (
-                                <span key={i}>
-                                  {formatTimeWindow(tw)}{i < limit.allowedTimeWindows!.length - 1 ? ',' : ''}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          <TimeWindowEditor 
+                            windows={editTimeWindows}
+                            onAdd={addEditTimeWindow}
+                            onUpdate={updateEditTimeWindow}
+                            onRemove={removeEditTimeWindow}
+                          />
+
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={saveEditing}>
+                              <Check className="w-4 h-4 mr-1" /> {t.options.save}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={cancelEditing}>
+                              <X className="w-4 h-4 mr-1" /> {t.options.cancel}
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground text-sm">
-                          {Math.round(limit.dailyLimitMs / 60000)} {t.options.minPerDay}
-                        </span>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => startEditing(limit)}
-                          className="h-8 w-8"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => handleRemoveLimit(limit.hostname)}
-                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      ) : (
+                        // View mode
+                        <div className="flex items-center justify-between p-3">
+                          <div className="flex items-center gap-3">
+                            <img 
+                              src={getFaviconUrl(limit.hostname, 20)} 
+                              alt="" 
+                              className="w-5 h-5"
+                            />
+                            <div>
+                              <span className="font-medium">{limit.hostname}</span>
+                              {limit.allowedTimeWindows && limit.allowedTimeWindows.length > 0 && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
+                                  <Clock className="w-3 h-3" />
+                                  {limit.allowedTimeWindows.map((tw, i) => (
+                                    <span key={i}>
+                                      {formatTimeWindow(tw)}{i < limit.allowedTimeWindows!.length - 1 ? ',' : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground text-sm">
+                              {Math.round(limit.dailyLimitMs / 60000)} {t.options.minPerDay}
+                            </span>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => startEditing(limit)}
+                              className="h-8 w-8"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleRemoveLimit(limit.hostname)}
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
+                  ))}
+                  {settings.limits.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      {t.options.noLimits}
+                    </p>
                   )}
                 </div>
-              ))}
-              {settings.limits.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  {t.options.noLimits}
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.settings.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <Label>{t.settings.language}</Label>
+                  <Select value={language} onValueChange={(val) => setLanguage(val as Language)}>
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(availableLanguages).map(([code, name]) => (
+                        <SelectItem key={code} value={code}>{name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label>{t.settings.theme}</Label>
+                  <ToggleGroup 
+                    type="single" 
+                    value={theme} 
+                    onValueChange={(val) => val && setTheme(val as Theme)}
+                    className="gap-0"
+                  >
+                    <ToggleGroupItem value="light" aria-label={t.settings.themeLight} className="gap-1.5 px-3">
+                      <Sun className="w-4 h-4" />
+                      <span className="hidden sm:inline">{t.settings.themeLight}</span>
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="dark" aria-label={t.settings.themeDark} className="gap-1.5 px-3">
+                      <Moon className="w-4 h-4" />
+                      <span className="hidden sm:inline">{t.settings.themeDark}</span>
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="system" aria-label={t.settings.themeSystem} className="gap-1.5 px-3">
+                      <Monitor className="w-4 h-4" />
+                      <span className="hidden sm:inline">{t.settings.themeSystem}</span>
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

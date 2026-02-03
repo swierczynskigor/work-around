@@ -60,7 +60,11 @@ export default function OptionsPage() {
     chrome.storage.sync.set({ [SETTINGS_KEY]: newSettings });
   };
 
-  const parseTime = (timeStr: string): { hour: number; minute: number } => {
+  const parseTime = (timeStr: string): { hour: number; minute: number } | null => {
+    // Only parse if in valid HH:MM format
+    if (!/^\d{2}:\d{2}$/.test(timeStr)) {
+      return null;
+    }
     const [hour, minute] = timeStr.split(':').map(Number);
     return { hour: hour || 0, minute: minute || 0 };
   };
@@ -79,7 +83,9 @@ export default function OptionsPage() {
   };
 
   const updateNewTimeWindow = (index: number, field: 'start' | 'end', value: string) => {
-    const { hour, minute } = parseTime(value);
+    const parsed = parseTime(value);
+    if (!parsed) return; // Don't update on invalid format
+    const { hour, minute } = parsed;
     setNewTimeWindows(prev => prev.map((tw, i) => 
       i === index 
         ? { ...tw, [field === 'start' ? 'startHour' : 'endHour']: hour, [field === 'start' ? 'startMinute' : 'endMinute']: minute }
@@ -97,7 +103,9 @@ export default function OptionsPage() {
   };
 
   const updateEditTimeWindow = (index: number, field: 'start' | 'end', value: string) => {
-    const { hour, minute } = parseTime(value);
+    const parsed = parseTime(value);
+    if (!parsed) return; // Don't update on invalid format
+    const { hour, minute } = parsed;
     setEditTimeWindows(prev => prev.map((tw, i) => 
       i === index 
         ? { ...tw, [field === 'start' ? 'startHour' : 'endHour']: hour, [field === 'start' ? 'startMinute' : 'endMinute']: minute }

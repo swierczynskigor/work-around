@@ -45,7 +45,8 @@ export type BlockReason =
   | 'none'           // Not blocked
   | 'time_limit'     // Daily time limit exceeded
   | 'outside_hours'  // Outside allowed time window
-  | 'focus_mode';    // Global focus mode active
+  | 'focus_mode'     // Global focus mode active
+  | 'youtube_shorts'; // YouTube Shorts blocked
 
 /**
  * Defines a recurring time window when access should be blocked entirely.
@@ -67,6 +68,8 @@ export interface BlockedTimeWindow {
 export interface AppSettings {
   /** Whether time tracking is globally active */
   isTrackingEnabled: boolean;
+  /** Whether to block YouTube Shorts */
+  blockYouTubeShorts?: boolean;
   /** List of scheduled blocking windows */
   blockedWindows: BlockedTimeWindow[];
   /** List of daily usage limits per site */

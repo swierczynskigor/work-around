@@ -26,6 +26,7 @@ export interface Translations {
     notInExtension: string;
     general: string;
     enableTracking: string;
+    blockYouTubeShorts: string;
     dailyLimits: string;
     addButton: string;
     minutes: string;
@@ -83,6 +84,7 @@ const translations: Record<Language, Translations> = {
       notInExtension: "Not running in extension context. Settings won't be saved.",
       general: "General",
       enableTracking: "Enable Time Tracking",
+      blockYouTubeShorts: "Block YouTube Shorts",
       dailyLimits: "Daily Limits",
       addButton: "Add",
       minutes: "Minutes",
@@ -138,6 +140,7 @@ const translations: Record<Language, Translations> = {
       notInExtension: "Nie działa w kontekście rozszerzenia. Ustawienia nie zostaną zapisane.",
       general: "Ogólne",
       enableTracking: "Włącz śledzenie czasu",
+      blockYouTubeShorts: "Blokuj YouTube Shorts",
       dailyLimits: "Dzienne limity",
       addButton: "Dodaj",
       minutes: "Minuty",
@@ -193,6 +196,7 @@ const translations: Record<Language, Translations> = {
       notInExtension: "Nicht im Erweiterungskontext. Einstellungen werden nicht gespeichert.",
       general: "Allgemein",
       enableTracking: "Zeiterfassung aktivieren",
+      blockYouTubeShorts: "YouTube Shorts blockieren",
       dailyLimits: "Tägliche Limits",
       addButton: "Hinzufügen",
       minutes: "Minuten",
@@ -248,6 +252,7 @@ const translations: Record<Language, Translations> = {
       notInExtension: "No se ejecuta en contexto de extensión. La configuración no se guardará.",
       general: "General",
       enableTracking: "Habilitar seguimiento de tiempo",
+      blockYouTubeShorts: "Bloquear YouTube Shorts",
       dailyLimits: "Límites diarios",
       addButton: "Agregar",
       minutes: "Minutos",
@@ -303,6 +308,7 @@ const translations: Record<Language, Translations> = {
       notInExtension: "Non exécuté dans le contexte d'extension. Les paramètres ne seront pas sauvegardés.",
       general: "Général",
       enableTracking: "Activer le suivi du temps",
+      blockYouTubeShorts: "Bloquer YouTube Shorts",
       dailyLimits: "Limites quotidiennes",
       addButton: "Ajouter",
       minutes: "Minutes",

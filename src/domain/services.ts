@@ -25,10 +25,11 @@ export interface ITimeTrackingService {
 export interface IBlockingService {
   /**
    * Checks if the user is currently allowed to access the site.
-   * Considers daily limits and blocked windows.
+   * Considers daily limits, blocked windows, and YouTube Shorts.
    * @param hostname The domain to check.
+   * @param pathname Optional URL pathname for path-based blocking (e.g., /shorts/).
    */
-  isBlocked(hostname: string): Promise<boolean>;
+  isBlocked(hostname: string, pathname?: string): Promise<boolean>;
 
   /**
    * Calculates remaining time for a hostname today.

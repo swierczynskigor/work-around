@@ -260,13 +260,23 @@ export default function OptionsPage() {
               <CardHeader>
                 <CardTitle>{t.options.general}</CardTitle>
               </CardHeader>
-              <CardContent className="flex items-center justify-between">
-                <Label htmlFor="tracking-mode">{t.options.enableTracking}</Label>
-                <Switch 
-                  id="tracking-mode" 
-                  checked={settings.isTrackingEnabled} 
-                  onCheckedChange={handleToggleTracking} 
-                />
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="tracking-mode">{t.options.enableTracking}</Label>
+                  <Switch 
+                    id="tracking-mode" 
+                    checked={settings.isTrackingEnabled} 
+                    onCheckedChange={handleToggleTracking} 
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="block-shorts">{t.options.blockYouTubeShorts}</Label>
+                  <Switch 
+                    id="block-shorts" 
+                    checked={settings.blockYouTubeShorts ?? false} 
+                    onCheckedChange={(enabled) => saveSettings({ ...settings, blockYouTubeShorts: enabled })} 
+                  />
+                </div>
               </CardContent>
             </Card>
 

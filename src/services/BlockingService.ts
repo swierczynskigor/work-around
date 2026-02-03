@@ -29,18 +29,33 @@ export class BlockingService implements IBlockingService {
     return undefined;
   }
 
-  async isBlocked(hostname: string): Promise<boolean> {
-    const reason = await this.getBlockReason(hostname);
+  async isBlocked(hostname: string, pathname?: string): Promise<boolean> {
+    const reason = await this.getBlockReason(hostname, pathname);
     return reason !== 'none';
+  }
+
+  /**
+   * Check if this is a YouTube Shorts URL
+   */
+  private isYouTubeShorts(hostname: string, pathname?: string): boolean {
+    const isYouTube = hostname === 'youtube.com' || 
+                      hostname === 'www.youtube.com' || 
+                      hostname.endsWith('.youtube.com');
+    return isYouTube && !!pathname && pathname.startsWith('/shorts');
   }
 
   /**
    * Get the reason why a site is blocked.
    * Returns 'none' if not blocked.
    */
-  async getBlockReason(hostname: string): Promise<BlockReason> {
+  async getBlockReason(hostname: string, pathname?: string): Promise<BlockReason> {
     const settings = await this.storageRepo.getSettings();
     if (!settings.isTrackingEnabled) return 'none';
+
+    // 0. Check YouTube Shorts blocking (before other checks)
+    if (settings.blockYouTubeShorts && this.isYouTubeShorts(hostname, pathname)) {
+      return 'youtube_shorts';
+    }
 
     // 1. Check Daily Limits
     const limitRule = this.findMatchingLimit(hostname, settings.limits);

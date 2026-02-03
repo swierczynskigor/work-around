@@ -17,18 +17,15 @@ export class TimeTrackingService implements ITimeTrackingService {
       };
     }
 
-    // Check if it's a new day (simple logic for now, can be improved)
-    // For now, we just accumulate total time forever in this simple model,
-    // but typically we'd want daily stats. 
-    // Let's stick to the interface: SiteStats has timeSpentMs.
-    // Ideally we should reset this daily or have a daily breakdown.
-    // For this MVP, let's assume timeSpentMs is "today's time" and we reset it if lastVisited was different day.
-    
-    // Simple day check
-    const lastDate = new Date(stats.lastVisited);
-    const currentDate = new Date(now);
-    
-    if (lastDate.toDateString() !== currentDate.toDateString()) {
+    // Check if it's a new day using midnight timestamp comparison
+    // This is more reliable than toDateString() for timezone handling
+    const lastMidnight = new Date(stats.lastVisited);
+    lastMidnight.setHours(0, 0, 0, 0);
+
+    const todayMidnight = new Date(now);
+    todayMidnight.setHours(0, 0, 0, 0);
+
+    if (lastMidnight.getTime() < todayMidnight.getTime()) {
       stats.timeSpentMs = 0;
     }
 
@@ -41,12 +38,10 @@ export class TimeTrackingService implements ITimeTrackingService {
 
   async getTodayStats(): Promise<SiteStats[]> {
     const allStats = await this.storageRepo.getAllStats();
-    const now = new Date();
-    // Filter/Reset for display if needed, but for now just return what's stored.
-    // In a real app, we might want to clean up old entries here.
-    return allStats.filter(s => {
-       const lastDate = new Date(s.lastVisited);
-       return lastDate.toDateString() === now.toDateString();
-    });
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    
+    // Only return stats from today (lastVisited >= today's midnight)
+    return allStats.filter(s => s.lastVisited >= todayMidnight.getTime());
   }
 }

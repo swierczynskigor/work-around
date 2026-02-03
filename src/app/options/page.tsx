@@ -60,11 +60,7 @@ export default function OptionsPage() {
     chrome.storage.sync.set({ [SETTINGS_KEY]: newSettings });
   };
 
-  const parseTime = (timeStr: string): { hour: number; minute: number } | null => {
-    // Only parse if in valid HH:MM format
-    if (!/^\d{2}:\d{2}$/.test(timeStr)) {
-      return null;
-    }
+  const parseTime = (timeStr: string): { hour: number; minute: number } => {
     const [hour, minute] = timeStr.split(':').map(Number);
     return { hour: hour || 0, minute: minute || 0 };
   };
@@ -83,9 +79,7 @@ export default function OptionsPage() {
   };
 
   const updateNewTimeWindow = (index: number, field: 'start' | 'end', value: string) => {
-    const parsed = parseTime(value);
-    if (!parsed) return; // Don't update on invalid format
-    const { hour, minute } = parsed;
+    const { hour, minute } = parseTime(value);
     setNewTimeWindows(prev => prev.map((tw, i) => 
       i === index 
         ? { ...tw, [field === 'start' ? 'startHour' : 'endHour']: hour, [field === 'start' ? 'startMinute' : 'endMinute']: minute }
@@ -103,9 +97,7 @@ export default function OptionsPage() {
   };
 
   const updateEditTimeWindow = (index: number, field: 'start' | 'end', value: string) => {
-    const parsed = parseTime(value);
-    if (!parsed) return; // Don't update on invalid format
-    const { hour, minute } = parsed;
+    const { hour, minute } = parseTime(value);
     setEditTimeWindows(prev => prev.map((tw, i) => 
       i === index 
         ? { ...tw, [field === 'start' ? 'startHour' : 'endHour']: hour, [field === 'start' ? 'startMinute' : 'endMinute']: minute }
@@ -210,15 +202,17 @@ export default function OptionsPage() {
         <div key={index} className="flex items-center gap-2">
           <Input 
             type="time" 
-            value={formatTime(tw.startHour, tw.startMinute)}
-            onChange={(e) => onUpdate(index, 'start', e.target.value)}
+            key={`start-${index}-${tw.startHour}-${tw.startMinute}`}
+            defaultValue={formatTime(tw.startHour, tw.startMinute)}
+            onBlur={(e) => onUpdate(index, 'start', e.target.value)}
             className="w-[100px] h-8"
           />
           <span className="text-muted-foreground">{t.options.to}</span>
           <Input 
             type="time" 
-            value={formatTime(tw.endHour, tw.endMinute)}
-            onChange={(e) => onUpdate(index, 'end', e.target.value)}
+            key={`end-${index}-${tw.endHour}-${tw.endMinute}`}
+            defaultValue={formatTime(tw.endHour, tw.endMinute)}
+            onBlur={(e) => onUpdate(index, 'end', e.target.value)}
             className="w-[100px] h-8"
           />
           <Button 

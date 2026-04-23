@@ -59,7 +59,13 @@ export function useStats() {
         if (chrome.runtime.lastError) return;
         
         const allStats = (statsResult[STATS_KEY] as SiteStats[]) || [];
-        setStats(allStats);
+        
+        // Filter to only today's stats (exclude stale data from previous days)
+        const todayMidnight = new Date();
+        todayMidnight.setHours(0, 0, 0, 0);
+        const todayStats = allStats.filter(s => s.lastVisited >= todayMidnight.getTime());
+        
+        setStats(todayStats);
         
         // Get settings for limits
         chrome.storage.sync.get([SETTINGS_KEY], (settingsResult) => {

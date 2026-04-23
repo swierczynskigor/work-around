@@ -160,26 +160,25 @@ function createOverlay(reason: BlockReason, lang: Language) {
   return overlay;
 }
 
-let lastPathname = '';
-
 async function checkStatus() {
-  if (isBlocked) return;
-
   const hostname = window.location.hostname;
   const pathname = window.location.pathname;
-  
-  // Skip if pathname hasn't changed (for polling efficiency)
-  if (pathname === lastPathname) return;
-  lastPathname = pathname;
-  
+
   const reason = await blockingService.getBlockReason(hostname, pathname);
 
   if (reason !== 'none') {
-    isBlocked = true;
-    const lang = await getLanguage();
-    document.body.innerHTML = '';
-    document.body.appendChild(createOverlay(reason, lang));
-    document.body.style.overflow = 'hidden';
+    if (!isBlocked) {
+      // Just became blocked — show overlay
+      isBlocked = true;
+      const lang = await getLanguage();
+      document.body.innerHTML = '';
+      document.body.appendChild(createOverlay(reason, lang));
+      document.body.style.overflow = 'hidden';
+    }
+  } else if (isBlocked) {
+    // Was blocked, but now unblocked (e.g., new day, settings changed)
+    isBlocked = false;
+    location.reload();
   }
 }
 
@@ -191,7 +190,6 @@ setInterval(checkStatus, 1000);
 
 // Listen for history navigation (back/forward buttons)
 window.addEventListener('popstate', () => {
-  lastPathname = ''; // Force recheck
   checkStatus();
 });
 
@@ -201,27 +199,15 @@ const originalReplaceState = history.replaceState;
 
 history.pushState = function(...args) {
   originalPushState.apply(this, args);
-  lastPathname = ''; // Force recheck
   checkStatus();
 };
 
 history.replaceState = function(...args) {
   originalReplaceState.apply(this, args);
-  lastPathname = ''; // Force recheck
   checkStatus();
 };
 
 // Listen for storage changes
 chrome.storage.onChanged.addListener(() => {
-  if (isBlocked) {
-     const pathname = window.location.pathname;
-     blockingService.getBlockReason(window.location.hostname, pathname).then(reason => {
-         if (reason === 'none') {
-             location.reload();
-         }
-     });
-  } else {
-     lastPathname = ''; // Force recheck
-     checkStatus();
-  }
+  checkStatus();
 });

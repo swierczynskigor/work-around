@@ -227,6 +227,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     log('⏰ HEARTBEAT');
     await commitCurrentSession();
     await checkAudibleTabs();
+    // Proactively clean up stale data from previous days
+    await storageRepo.cleanupOldStats();
   }
 });
 
@@ -254,6 +256,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Initialize on startup
 async function initialize() {
   log('🚀 Background worker starting...');
+  
+  // Clean up stale data from previous days on startup
+  await storageRepo.cleanupOldStats();
   
   // Find currently active tab
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });

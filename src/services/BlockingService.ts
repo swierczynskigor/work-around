@@ -67,8 +67,8 @@ export class BlockingService implements IBlockingService {
         }
       }
 
-      // Check if daily limit exceeded
-      const stats = await this.storageRepo.getStats(hostname);
+      // Check if daily limit exceeded (date-aware — ignores yesterday's data)
+      const stats = await this.storageRepo.getStatsForToday(hostname);
       if (stats && stats.timeSpentMs >= limitRule.dailyLimitMs) {
         return 'time_limit';
       }
@@ -114,7 +114,7 @@ export class BlockingService implements IBlockingService {
     
     if (!limitRule) return -1;
 
-    const stats = await this.storageRepo.getStats(hostname);
+    const stats = await this.storageRepo.getStatsForToday(hostname);
     const timeSpent = stats ? stats.timeSpentMs : 0;
     
     return Math.max(0, limitRule.dailyLimitMs - timeSpent);

@@ -20,24 +20,19 @@ export function DomainInput({
   placeholder = "Domain (e.g. facebook.com)",
   className,
 }: DomainInputProps) {
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const suggestions = filterDomains(value, 8);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Filter suggestions when value changes
-  useEffect(() => {
-    const filtered = filterDomains(value, 8);
-    setSuggestions(filtered);
-    setSelectedIndex(-1);
-    setShowSuggestions(filtered.length > 0 && value.length >= 2);
-  }, [value]);
-
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setShowSuggestions(false);
       }
     };
@@ -45,11 +40,14 @@ export function DomainInput({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const selectSuggestion = useCallback((domain: string) => {
-    onChange(domain);
-    setShowSuggestions(false);
-    inputRef.current?.focus();
-  }, [onChange]);
+  const selectSuggestion = useCallback(
+    (domain: string) => {
+      onChange(domain);
+      setShowSuggestions(false);
+      inputRef.current?.focus();
+    },
+    [onChange],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showSuggestions) {
@@ -60,13 +58,13 @@ export function DomainInput({
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        setSelectedIndex(prev => 
-          prev < suggestions.length - 1 ? prev + 1 : prev
+        setSelectedIndex((prev) =>
+          prev < suggestions.length - 1 ? prev + 1 : prev,
         );
         break;
       case "ArrowUp":
         e.preventDefault();
-        setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
         break;
       case "Enter":
         if (selectedIndex >= 0 && suggestions[selectedIndex]) {
@@ -91,18 +89,26 @@ export function DomainInput({
   };
 
   return (
-    <div ref={containerRef} className={`relative ${className || ''}`}>
+    <div ref={containerRef} className={`relative ${className || ""}`}>
       <Input
         ref={inputRef}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setSelectedIndex(-1);
+          setShowSuggestions(e.target.value.length >= 2);
+        }}
         onKeyDown={handleKeyDown}
-        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+        onFocus={() =>
+          value.length >= 2 &&
+          suggestions.length > 0 &&
+          setShowSuggestions(true)
+        }
         placeholder={placeholder}
         autoComplete="off"
         spellCheck={false}
       />
-      
+
       {showSuggestions && suggestions.length > 0 && (
         <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
           {suggestions.map((domain, index) => (
@@ -115,10 +121,10 @@ export function DomainInput({
               onClick={() => selectSuggestion(domain)}
               onMouseEnter={() => setSelectedIndex(index)}
             >
-              <img 
-                src={getFaviconUrl(domain, 16)} 
-                alt="" 
-                className="w-4 h-4" 
+              <img
+                src={getFaviconUrl(domain, 16)}
+                alt=""
+                className="w-4 h-4"
                 loading="lazy"
               />
               <span>{domain}</span>

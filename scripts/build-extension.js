@@ -133,7 +133,6 @@ async function build() {
      const filePath = path.join(outDir, htmlFile);
      if (await fs.pathExists(filePath)) {
         let content = await fs.readFile(filePath, 'utf8');
-        let scriptCount = 0;
 
         // Regex to match <script> tags with content.
         // We handle attributes by capturing them in group 1.

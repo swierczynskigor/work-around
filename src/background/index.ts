@@ -1,272 +1,354 @@
-import { ChromeStorageRepository } from '../data/ChromeStorageRepository';
-import { TimeTrackingService } from '../services/TimeTrackingService';
+import {
+  ChromeStorageRepository,
+  SETTINGS_KEY,
+  USAGE_KEY,
+} from "../data/ChromeStorageRepository";
+import {
+  AppSettings,
+  CurrentSessionInfo,
+  PolicyDecision,
+  TrackingStatus,
+  UsageData,
+} from "../domain/models";
+import {
+  ActivityTarget,
+  ActivityTracker,
+  MAX_SAMPLE_GAP_MS,
+} from "../services/ActivityTracker";
+import {
+  DEFAULT_SETTINGS,
+  dayKey,
+  evaluatePolicy,
+  hostnameFromUrl,
+} from "../services/policies";
 
-const storageRepo = new ChromeStorageRepository();
-const trackingService = new TimeTrackingService(storageRepo);
-
-// Debug flag - set to true for verbose logging
-const DEBUG = true;
-
-function log(...args: unknown[]) {
-  if (DEBUG) {
-    console.log('[WorkAround]', new Date().toISOString(), ...args);
-  }
+const repository = new ChromeStorageRepository();
+const tracker = new ActivityTracker();
+let settings: AppSettings = DEFAULT_SETTINGS;
+let usage: UsageData = { version: 2, records: [], extensions: [] };
+let pausedUntil: number | null = null;
+let status: TrackingStatus = "unsupported";
+let activeUrl = "";
+let lastSampleAt = 0;
+const media = new Map<number, { playing: boolean; at: number }>();
+interface Gate {
+  url: string;
+  elapsed: number;
+  lastAt: number;
+  passed: boolean;
 }
+const gates = new Map<number, Gate>();
 
-let activeTabId: number | null = null;
-let activeHostname: string | null = null;
-let startTime: number | null = null;
-
-// Lock to prevent concurrent commits
-let commitInProgress = false;
-
-// Track tabs with media playing (for YouTube background detection)
-const tabsWithAudio: Set<number> = new Set();
-
-// Helper to extract hostname
-function getHostname(url: string | undefined): string | null {
-  if (!url) {
-    log('getHostname: URL is empty/undefined');
-    return null;
-  }
-  try {
-    const u = new URL(url);
-    if (u.protocol === 'http:' || u.protocol === 'https:') {
-      log('getHostname: Extracted hostname:', u.hostname, 'from URL:', url.substring(0, 50));
-      return u.hostname;
-    }
-    log('getHostname: Invalid protocol:', u.protocol);
-    return null;
-  } catch (e) {
-    log('getHostname: Failed to parse URL:', url, e);
-    return null;
-  }
-}
-
-// Function to commit time for the currently active tab
-async function commitCurrentSession(): Promise<boolean> {
-  // Prevent concurrent commits
-  if (commitInProgress) {
-    log('⚠️ Commit already in progress, skipping');
-    return false;
-  }
-  
-  // Capture values atomically before any async operations
-  const hostnameToCommit = activeHostname;
-  const startTimeToCommit = startTime;
-  
-  log('commitCurrentSession called. hostname:', hostnameToCommit, 'startTime:', startTimeToCommit);
-  
-  if (!hostnameToCommit || !startTimeToCommit) {
-    log('✗ Cannot commit: no hostname or startTime');
-    return false;
-  }
-  
-  // Calculate duration NOW, before resetting startTime
-  const now = Date.now();
-  const duration = now - startTimeToCommit;
-  
-  // Reset startTime immediately to prevent duplicate commits
-  startTime = now;
-  
-  if (duration <= 500) {
-    log(`✗ Duration too short (${duration}ms), skipping`);
-    return false;
-  }
-  
-  commitInProgress = true;
-  
-  try {
-    log(`✓ Tracking ${duration}ms (${(duration/1000).toFixed(1)}s) for ${hostnameToCommit}`);
-    await trackingService.trackTime(hostnameToCommit, duration);
-    log(`✓ Saved successfully`);
-    return true;
-  } catch (e) {
-    log('✗ Error saving:', e);
-    return false;
-  } finally {
-    commitInProgress = false;
-  }
-}
-
-// Get current session info (for popup to query)
-function getCurrentSessionInfo() {
-  const info = {
-    hostname: activeHostname,
-    currentSessionMs: activeHostname && startTime ? Date.now() - startTime : 0
-  };
-  return info;
-}
-
-async function handleTabSwitch(tabId: number, reason: string) {
-  log(`handleTabSwitch called. tabId: ${tabId}, reason: ${reason}`);
-  
-  // Commit previous session before switching
-  await commitCurrentSession();
-
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    log('Tab details:', { id: tab.id, url: tab.url?.substring(0, 60), audible: tab.audible, active: tab.active });
-    
-    const newHostname = getHostname(tab.url);
-    
-    // Only start tracking if it's a valid hostname
-    if (newHostname) {
-      activeTabId = tabId;
-      activeHostname = newHostname;
-      startTime = Date.now();
-      log(`Now tracking: ${activeHostname} (tab ${tabId})`);
-    } else {
-      // Extension page or invalid - stop tracking
-      activeTabId = tabId;
-      activeHostname = null;
-      startTime = null;
-      log(`Not tracking (invalid hostname) for tab ${tabId}`);
-    }
-  } catch (e) {
-    log('handleTabSwitch error (tab might be closed):', e);
-    activeTabId = null;
-    activeHostname = null;
-    startTime = null;
-  }
-}
-
-// Track audible tabs (for background media detection)
-async function checkAudibleTabs() {
-  try {
-    const audibleTabs = await chrome.tabs.query({ audible: true });
-    const newAudibleSet = new Set(audibleTabs.map(t => t.id).filter((id): id is number => id !== undefined));
-    
-    // Log changes in audible state
-    for (const tabId of newAudibleSet) {
-      if (!tabsWithAudio.has(tabId)) {
-        const tab = await chrome.tabs.get(tabId);
-        log(`🔊 Tab ${tabId} started playing audio: ${getHostname(tab.url)}`);
-        tabsWithAudio.add(tabId);
-      }
-    }
-    
-    for (const tabId of tabsWithAudio) {
-      if (!newAudibleSet.has(tabId)) {
-        log(`🔇 Tab ${tabId} stopped playing audio`);
-        tabsWithAudio.delete(tabId);
-      }
-    }
-    
-    // If there are audible tabs that are NOT the active tab, track them too
-    for (const tab of audibleTabs) {
-      if (tab.id && tab.id !== activeTabId) {
-        const hostname = getHostname(tab.url);
-        if (hostname) {
-          // Track 1 minute for background audio (this is checked every minute)
-          const duration = 60000;
-          log(`📺 Background audio on: ${hostname} - tracking ${duration}ms`);
-          await trackingService.trackTime(hostname, duration);
-        }
-      }
-    }
-  } catch (e) {
-    log('checkAudibleTabs error:', e);
-  }
-}
-
-// Event Listeners
-chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  log('EVENT: tabs.onActivated - tabId:', activeInfo.tabId);
-  await handleTabSwitch(activeInfo.tabId, 'tab activated');
-});
-
-chrome.windows.onFocusChanged.addListener(async (windowId) => {
-  log('EVENT: windows.onFocusChanged - windowId:', windowId);
-  
-  if (windowId === chrome.windows.WINDOW_ID_NONE) {
-    log('Browser lost focus - committing and pausing');
-    await commitCurrentSession();
-    // Pause tracking (keep hostname but clear startTime)
-    startTime = null;
-  } else {
-    log('Browser focused - resuming');
-    // Resume tracking if we had a hostname
-    if (activeHostname) {
-      startTime = Date.now();
-      log(`Resumed tracking: ${activeHostname}`);
-    } else {
-      // Find active tab
-      const tabs = await chrome.tabs.query({ active: true, windowId });
-      if (tabs.length > 0 && tabs[0].id) {
-        await handleTabSwitch(tabs[0].id, 'window focused');
-      }
-    }
-  }
-});
-
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  // Only log important updates
-  if (tabId === activeTabId && (changeInfo.url || changeInfo.status === 'complete')) {
-    log('EVENT: tabs.onUpdated - tabId:', tabId, 'changes:', changeInfo);
-  }
-  
-  // Track URL changes on the active tab (for SPAs like Instagram)
-  if (tabId === activeTabId && changeInfo.url) {
-    const newHostname = getHostname(changeInfo.url);
-    log(`Active tab URL changed from ${activeHostname} to ${newHostname}`);
-    
-    if (newHostname && newHostname !== activeHostname) {
-      log('Hostname changed - committing and switching');
-      await commitCurrentSession();
-      activeHostname = newHostname;
-      startTime = Date.now();
-    }
-  }
-});
-
-// Periodic heartbeat to save progress and check background audio
-chrome.alarms.create('heartbeat', { periodInMinutes: 1 });
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === 'heartbeat') {
-    log('⏰ HEARTBEAT');
-    await commitCurrentSession();
-    await checkAudibleTabs();
-    // Proactively clean up stale data from previous days
-    await storageRepo.cleanupOldStats();
-  }
-});
-
-// Message handler for popup to get current session info
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'GET_CURRENT_SESSION') {
-    const info = getCurrentSessionInfo();
-    sendResponse(info);
-    return true;
-  }
-  
-  if (message.type === 'DEBUG_STATE') {
-    sendResponse({
-      activeTabId,
-      activeHostname,
-      startTime,
-      currentDuration: startTime ? Date.now() - startTime : 0,
-      tabsWithAudio: Array.from(tabsWithAudio),
-      commitInProgress
-    });
-    return true;
-  }
-});
-
-// Initialize on startup
 async function initialize() {
-  log('🚀 Background worker starting...');
-  
-  // Clean up stale data from previous days on startup
-  await storageRepo.cleanupOldStats();
-  
-  // Find currently active tab
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tabs.length > 0 && tabs[0].id) {
-    await handleTabSwitch(tabs[0].id, 'startup');
-  }
-  
-  log('✅ Background worker initialized');
+  await repository.migrate();
+  [settings, usage] = await Promise.all([
+    repository.getSettings(),
+    repository.getUsage(),
+  ]);
+  const session = await repository.getSession<{
+    pausedUntil?: number | null;
+  }>();
+  pausedUntil =
+    session?.pausedUntil && session.pausedUntil > Date.now()
+      ? session.pausedUntil
+      : null;
+  chrome.idle.setDetectionInterval(settings.idleSeconds || 180);
+  if (!(await chrome.alarms.get("heartbeat")))
+    await chrome.alarms.create("heartbeat", { periodInMinutes: 0.5 });
+  // A restarted worker must observe activity again, never commit the old wall-clock gap.
+  tracker.reset();
+}
+let queue: Promise<unknown> = initialize();
+function enqueue<T>(operation: () => Promise<T>): Promise<T> {
+  const next = queue.then(operation);
+  queue = next.catch((error) => {
+    console.error("[WorkAround]", error);
+  });
+  return next;
+}
+function decision(url: string, now = Date.now()): PolicyDecision {
+  return evaluatePolicy(url, settings, usage, now);
 }
 
-initialize();
+async function sample(force = false, closePrevious = false): Promise<void> {
+  const now = Date.now();
+  if (!force && now - lastSampleAt < 4000) return;
+  lastSampleAt = now;
+  const [windows, idle] = await Promise.all([
+    chrome.windows.getAll({ populate: true, windowTypes: ["normal"] }),
+    chrome.idle.queryState(settings.idleSeconds || 180),
+  ]);
+  const window = windows.find(
+    (item) => item.focused && item.state !== "minimized",
+  );
+  const tab = window?.tabs?.find((item) => item.active);
+  activeUrl = tab?.url || "";
+  const targets: ActivityTarget[] = [];
+  if (pausedUntil && pausedUntil <= now) {
+    pausedUntil = null;
+    await repository.saveSession({ pausedUntil });
+  }
+  status = !settings.isTrackingEnabled
+    ? "disabled"
+    : pausedUntil
+      ? "manual"
+      : idle === "locked"
+        ? "locked"
+        : idle === "idle"
+          ? "idle"
+          : !window
+            ? "unfocused"
+            : !hostnameFromUrl(activeUrl)
+              ? "unsupported"
+              : "tracking";
+
+  for (const [id, gate] of gates) {
+    if (id !== tab?.id || idle === "locked") {
+      if (!gate.passed) {
+        gate.elapsed = 0;
+        gate.lastAt = 0;
+      }
+    }
+  }
+  if (settings.isTrackingEnabled && !pausedUntil && idle !== "locked") {
+    const hostname = hostnameFromUrl(activeUrl);
+    const hint = tab?.id !== undefined ? media.get(tab.id) : undefined;
+    const foregroundMedia =
+      !!settings.countMedia &&
+      !!hint?.playing &&
+      now - hint.at <= MAX_SAMPLE_GAP_MS;
+    if (hostname && (idle === "active" || foregroundMedia)) {
+      const policy = decision(activeUrl, now);
+      const gate = tab?.id !== undefined ? gates.get(tab.id) : undefined;
+      if (
+        policy.reason !== "none" ||
+        (policy.delaySeconds > 0 && !gate?.passed)
+      )
+        status = "blocked";
+      else if (!policy.isException) {
+        targets.push({ hostname, kind: "active" });
+        status = foregroundMedia && idle !== "active" ? "media" : "tracking";
+      } else status = "unsupported";
+    }
+    if (settings.countMedia) {
+      for (const current of windows.flatMap((item) => item.tabs || [])) {
+        if (
+          current.id === undefined ||
+          current.id === tab?.id ||
+          current.mutedInfo?.muted
+        )
+          continue;
+        const playing = media.get(current.id),
+          host = hostnameFromUrl(current.url);
+        if (
+          !host ||
+          !current.audible ||
+          !playing?.playing ||
+          now - playing.at > MAX_SAMPLE_GAP_MS
+        )
+          continue;
+        const policy = decision(current.url!, now);
+        if (
+          policy.reason === "none" &&
+          !policy.isException &&
+          (!policy.delaySeconds || gates.get(current.id)?.passed)
+        )
+          targets.push({ hostname: host, kind: "media" });
+      }
+      if (targets.length && status !== "tracking") status = "media";
+    }
+  }
+  const intervals = tracker.sample(now, targets, closePrevious);
+  if (intervals.length) {
+    await repository.appendIntervals(intervals);
+    usage = await repository.getUsage();
+  }
+}
+
+async function pageStatus(tabId: number): Promise<PolicyDecision> {
+  const tab = await chrome.tabs.get(tabId),
+    url = tab.url || "";
+  const now = Date.now(),
+    policy = decision(url, now);
+  if (policy.reason !== "none" || !policy.delaySeconds || policy.isException)
+    return policy;
+  let gate = gates.get(tabId);
+  if (!gate || gate.url !== url) {
+    gate = { url, elapsed: 0, lastAt: 0, passed: false };
+    gates.set(tabId, gate);
+  }
+  const window = await chrome.windows.get(tab.windowId);
+  const idle = await chrome.idle.queryState(settings.idleSeconds || 180);
+  if (
+    window.focused &&
+    tab.active &&
+    window.state !== "minimized" &&
+    idle === "active"
+  ) {
+    if (gate.lastAt && now - gate.lastAt <= MAX_SAMPLE_GAP_MS)
+      gate.elapsed += now - gate.lastAt;
+    else if (!gate.passed) gate.elapsed = 0;
+    gate.lastAt = now;
+    if (gate.elapsed >= policy.delaySeconds * 1000) gate.passed = true;
+  } else if (!gate.passed) {
+    gate.elapsed = 0;
+    gate.lastAt = 0;
+  }
+  if (!gate.passed) {
+    policy.reason = "entry_delay";
+    policy.remainingMs = Math.max(0, policy.delaySeconds * 1000 - gate.elapsed);
+    policy.canExtend = false;
+  }
+  return policy;
+}
+
+chrome.tabs.onActivated.addListener(() => {
+  void enqueue(() => sample(true, true));
+});
+chrome.windows.onFocusChanged.addListener(() => {
+  void enqueue(() => sample(true, true));
+});
+chrome.tabs.onUpdated.addListener((id, change) => {
+  if (change.url) {
+    gates.delete(id);
+    media.delete(id);
+    void enqueue(() => sample(true, true));
+  }
+});
+chrome.tabs.onRemoved.addListener((id) => {
+  gates.delete(id);
+  media.delete(id);
+  void enqueue(() => sample(true, true));
+});
+chrome.idle.onStateChanged.addListener(() => {
+  void enqueue(() => sample(true));
+});
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "heartbeat") void enqueue(() => sample(true));
+});
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (
+    (area === "sync" && changes[SETTINGS_KEY]) ||
+    (area === "local" && changes[USAGE_KEY])
+  ) {
+    void enqueue(async () => {
+      if (area === "sync") {
+        settings = await repository.getSettings();
+        chrome.idle.setDetectionInterval(settings.idleSeconds || 180);
+        gates.clear();
+        tracker.reset();
+      }
+      usage = await repository.getUsage();
+      if (area === "sync") await sample(true);
+    });
+  }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  const type = message?.type;
+  const isPage = sender.tab?.id !== undefined;
+  const isExtension =
+    sender.id === chrome.runtime.id &&
+    !!sender.url?.startsWith(chrome.runtime.getURL(""));
+  if (!isPage && !isExtension) return false;
+  const allowed = isExtension
+    ? [
+        "GET_CURRENT_SESSION",
+        "PAUSE_TRACKING",
+        "DELETE_RECORD",
+        "EXTEND_TIME",
+      ]
+    : ["PAGE_STATUS", "EXTEND_TIME", "OPEN_OPTIONS"];
+  if (!allowed.includes(type)) return false;
+  void enqueue(async () => {
+    if (type === "OPEN_OPTIONS") {
+      await chrome.tabs.create({ url: chrome.runtime.getURL("options.html") });
+      return { ok: true };
+    }
+    if (type === "PAGE_STATUS") {
+      media.set(sender.tab!.id!, {
+        playing: message.playing === true,
+        at: Date.now(),
+      });
+      await sample();
+      return {
+        policy: await pageStatus(sender.tab!.id!),
+        warningsEnabled: settings.warningsEnabled !== false,
+      };
+    }
+    if (type === "GET_CURRENT_SESSION") {
+      await sample();
+      const tabs = await chrome.tabs.query({
+        active: true,
+        lastFocusedWindow: true,
+      });
+      const url = tabs[0]?.url || activeUrl;
+      return {
+        hostname: hostnameFromUrl(url),
+        currentSessionMs: 0,
+        status,
+        pausedUntil,
+        policy: decision(url),
+      } satisfies CurrentSessionInfo;
+    }
+    if (type === "PAUSE_TRACKING") {
+      const minutes =
+        message.minutes === 0
+          ? 0
+          : [5, 15, 30, 60].includes(message.minutes)
+            ? message.minutes
+            : 15;
+      pausedUntil = minutes ? Date.now() + minutes * 60_000 : null;
+      tracker.reset();
+      await repository.saveSession({ pausedUntil });
+      await sample(true);
+      return { ok: true };
+    }
+    if (type === "DELETE_RECORD") {
+      if (typeof message.id !== "string") throw new Error("Invalid session");
+      tracker.reset();
+      await repository.mutateUsage((data) => {
+        data.records = data.records.filter(
+          (record) => record.id !== message.id,
+        );
+      });
+      usage = await repository.getUsage();
+      return { ok: true };
+    }
+    if (type === "EXTEND_TIME") {
+      const tab =
+        !isExtension && isPage
+          ? await chrome.tabs.get(sender.tab!.id!)
+          : (
+              await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+            )[0];
+      const url = tab?.url || "",
+        policy = decision(url),
+        hostname = hostnameFromUrl(url);
+      if (!hostname || !policy.canExtend)
+        throw new Error("A time extension is not available.");
+      const now = Date.now();
+      await repository.mutateUsage((data) => {
+        data.extensions.push({
+          id: crypto.randomUUID(),
+          hostname,
+          day: dayKey(now),
+          expiresAt: now + 5 * 60_000,
+        });
+      });
+      usage = await repository.getUsage();
+      return { ok: true };
+    }
+    return { ok: false };
+  })
+    .then(respond)
+    .catch((error) =>
+      respond({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to complete this action.",
+      }),
+    );
+  return true;
+});

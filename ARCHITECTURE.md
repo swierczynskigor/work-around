@@ -1,62 +1,65 @@
 # Architecture Overview
 
-This document provides a high-level map of the `work-around` project to help AI agents and developers navigate the codebase efficiently.
-
-## System Components
-
-The project is a **Chrome Extension** built with **Next.js**. It consists of three main isolated contexts that communicate via standard Chrome APIs.
+WorkAround is a Manifest V3 Chrome extension. Next.js statically exports the popup
+and options pages; esbuild bundles the background worker and content script.
 
 ```mermaid
 graph TD
-    subgraph "Extension Context"
-        BG[Background Script<br/>(Service Worker)]
-        CS[Content Script<br/>(Page Overlay)]
-    end
-
-    subgraph "UI Context (Next.js)"
-        Popup[Popup UI]
-        Options[Options UI]
-    end
-
-    subgraph "Data Layer"
-        Store[Chrome Storage<br/>(Sync/Local)]
-    end
-
-    Popup -->|Reads/Writes| Store
-    Options -->|Reads/Writes| Store
-    BG -->|Listens| Store
-    BG -->|Tracks Time| Store
-    CS -->|Reads Limits| Store
-    CS -->|Blocks Page| DOM[DOM]
+    Popup[Popup / Options] -->|Settings via repository| Settings[Chrome Storage Sync]
+    Popup -->|Commands| Background[Background worker]
+    Content[Content script] -->|Activity samples / policy requests| Background
+    Background -->|Single writer via repository| Usage[Chrome Storage Local: usage v2]
+    Background -->|Pause persistence| Session[Chrome Storage Session]
+    Settings -->|Change observer| Background
+    Usage -->|Change observer| Popup
+    Background -->|Policy decision| Content
+    Content --> Modal[Shadow-root modal / warnings]
 ```
 
-## Directory Structure & Responsibilities
+## Responsibilities
 
-| Path | Context | Responsibility |
-| :--- | :--- | :--- |
-| `src/app` | **UI** | Next.js App Router. Contains pages for `popup` and `options`. Built to `out/`. |
-| `src/background` | **Worker** | Service Worker (`index.ts`). Handles time tracking, alarms, and browser events. |
-| `src/content` | **Page** | Content Script (`index.ts`). Injected into pages. Checks limits and renders blocking overlay. |
-| `src/data` | **Shared** | **Repository Pattern**. Direct access to `chrome.storage`. |
-| `src/services` | **Shared** | **Facade/Service Pattern**. Business logic (e.g., `TimeTrackingService`) that uses Repositories. |
-| `src/domain` | **Shared** | TypeScript Interfaces and Types defining the data model. |
-| `src/components` | **UI** | Reusable UI components (Radix UI + Tailwind). |
-| `scripts` | **Build** | Custom build scripts (`build-extension.js`) to bundle non-Next.js parts. |
+- `src/services/ActivityTracker.ts`: observed time intervals, duplicate-domain
+  elimination, gap protection and local-midnight splitting. It does not access
+  browser APIs or storage.
+- `src/services/policies.ts`: pure policy evaluation, settings defaults and legacy
+  normalization, URL exceptions, overlapping group budgets, allowed hours,
+  overnight focus schedules, and access extensions.
+- `src/data/ChromeStorageRepository.ts`: versioned usage persistence, one-time
+  migration, 30-day retention, serialized mutations, settings and preferences.
+- `src/background/index.ts`: the only writer of usage data. Serializes browser
+  events and commands; observes the active window, active tab and system idle
+  state; combines media reports with the browser's audible state. Sampling is
+  throttled to four seconds, with exact observed tab/focus transitions committed
+  separately. A gap over 12 seconds is discarded. Worker restarts start a fresh
+  observation instead of reconstructing elapsed wall time.
+- `src/content/index.ts`: reports playback, requests policy decisions and renders
+  warnings or a native modal dialog in a shadow root. The page DOM is preserved.
+  Visible pages check every second; hidden pages report every five seconds,
+  subject to browser timer throttling. Entry countdowns require foreground use.
+- `src/hooks`: settings, preferences and activity subscriptions for React.
+- `src/components/ProductivitySettings.tsx`: groups, URL exceptions,
+  tracking controls and confirmed session corrections.
+## Data and compatibility
 
-## Data Flow
+`workaround_settings` remains in sync storage. Optional new fields are normalized
+at the repository boundary, so existing installations keep their limits and
+schedules. A legacy disabled master switch initially disables both tracking and
+blocking; afterwards they can be configured independently.
 
-1.  **Configuration**: User sets limits in **Options UI**. Data is saved via `ChromeStorageRepository`.
-2.  **Tracking**: **Background Script** listens to `tabs.onActivated` and tracks duration. Updates usage stats in Storage.
-3.  **Enforcement**: **Content Script** polls Storage (or listens for changes) to check if the current domain exceeds the limit. If yes, it injects a blocking overlay.
+`workaround_usage_v2` in local storage holds observed session intervals and daily
+extension grants. Consecutive intervals of one domain/source/day are coalesced.
+Per-domain totals and group totals are derived from these records, so deleting a
+session corrects every relevant budget without maintaining divergent counters.
+Group totals use interval unions. Imported legacy daily totals have no known
+interval and are additive. The legacy `workaround_stats` key is retained as a
+migration backup and is no longer written.
 
-## Key Design Patterns
+`workaround_activity_v2` in session storage holds the temporary manual pause.
+Unconfirmed timestamps from older workers are never restored as billable time.
 
-*   **Repository Pattern**: All raw data access (loading/saving settings) is encapsulated in `src/data/*Repository.ts`.
-*   **Service Pattern**: Logic for "is this site blocked?" or "track time" is in `src/services/`.
-*   **Observer Pattern**: The extension relies heavily on `chrome.storage.onChanged` and `chrome.tabs.onUpdated`.
+## Build and verification
 
-## Build Pipeline
-
-1.  **Next.js Build**: `next build` -> Export static HTML/CSS/JS to `out/`.
-2.  **Extension Build**: `node scripts/build-extension.js` -> Bundles `src/background` and `src/content` using esbuild to `out/`.
-3.  **Post-Processing**: Renames `_next` to `next` to comply with Chrome Web Store rules.
+`npm test` bundles and runs deterministic policy, repository, tracker and mocked
+background integration tests using Node's test runner. `npm run build` generates
+`out`, patches static resource paths and extracts inline scripts for extension
+CSP. `node scripts/validate-build.js` checks the final package.

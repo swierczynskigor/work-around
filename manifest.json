@@ -8,7 +8,8 @@
     "tabs",
     "alarms",
     "activeTab",
-    "scripting"
+    "scripting",
+    "idle"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -46,5 +47,6 @@
       ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "minimum_chrome_version": "120"
 }

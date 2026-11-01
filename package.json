@@ -8,7 +8,8 @@
     "build:extension": "node scripts/build-extension.js",
     "start": "next start",
     "lint": "eslint",
-    "build:icons": "node scripts/generate-icons.js"
+    "build:icons": "node scripts/generate-icons.js",
+    "test": "node scripts/test.js"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.8",

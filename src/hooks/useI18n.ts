@@ -1,114 +1,80 @@
 "use client";
-
-import { useState, useEffect, useCallback } from 'react';
-import { Language, Translations, getTranslations, detectBrowserLanguage, LANGUAGE_NAMES } from '@/lib/i18n';
-
-const LANGUAGE_KEY = 'workaround_language';
-const THEME_KEY = 'workaround_theme';
-
-export type Theme = 'light' | 'dark' | 'system';
-
-// Helper to safely check if we're in a Chrome extension context
-function isChromeExtension(): boolean {
-  try {
-    return typeof chrome !== 'undefined' && 
-           typeof chrome.storage !== 'undefined' &&
-           typeof chrome.storage.sync !== 'undefined';
-  } catch {
-    return false;
-  }
-}
-
+import { useState, useEffect, useCallback } from "react";
+import {
+  Language,
+  getTranslations,
+  detectBrowserLanguage,
+  LANGUAGE_NAMES,
+} from "@/lib/i18n";
+import { ChromeStorageRepository } from "@/data/ChromeStorageRepository";
+import { isExtension } from "@/data/extensionClient";
+export type Theme = "light" | "dark" | "system";
+const repository = new ChromeStorageRepository();
 function applyTheme(theme: Theme) {
-  if (typeof window === 'undefined') return;
-  
-  const root = document.documentElement;
-  
-  if (theme === 'system') {
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    root.classList.toggle('dark', systemDark);
-  } else {
-    root.classList.toggle('dark', theme === 'dark');
-  }
+  document.documentElement.classList.toggle(
+    "dark",
+    theme === "dark" ||
+      (theme === "system" &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches),
+  );
 }
-
 export function useI18n() {
-  const [language, setLanguageState] = useState<Language>('en');
-  const [theme, setThemeState] = useState<Theme>('system');
-  const [t, setT] = useState<Translations>(getTranslations('en'));
-
+  const [language, setLanguageState] = useState<Language>("en");
+  const [theme, setThemeState] = useState<Theme>("system");
   useEffect(() => {
-    // Load saved preferences or detect from browser/system
-    if (isChromeExtension()) {
-      chrome.storage.sync.get([LANGUAGE_KEY, THEME_KEY], (result) => {
-        if (chrome.runtime.lastError) {
-          const detected = detectBrowserLanguage();
-          setLanguageState(detected);
-          setT(getTranslations(detected));
-          applyTheme('system');
-          return;
-        }
-        
-        // Language
-        const savedLang = result[LANGUAGE_KEY] as Language | undefined;
-        const lang = savedLang || detectBrowserLanguage();
-        setLanguageState(lang);
-        setT(getTranslations(lang));
-        
-        // Theme
-        const savedTheme = result[THEME_KEY] as Theme | undefined;
-        const themeValue = savedTheme || 'system';
-        setThemeState(themeValue);
-        applyTheme(themeValue);
-      });
-    } else {
-      const detected = detectBrowserLanguage();
-      setLanguageState(detected);
-      setT(getTranslations(detected));
-      applyTheme('system');
-    }
-    
-    // Listen for system theme changes
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = () => {
-      // Re-apply if using system theme
-      if (isChromeExtension()) {
-        chrome.storage.sync.get([THEME_KEY], (result) => {
-          const currentTheme = result[THEME_KEY] as Theme | undefined;
-          if (!currentTheme || currentTheme === 'system') {
-            applyTheme('system');
-          }
-        });
-      }
+    let alive = true;
+    const load = async () => {
+      const preferences = isExtension()
+        ? await repository.getPreferences()
+        : {};
+      if (!alive) return;
+      const language = preferences.language || detectBrowserLanguage();
+      setLanguageState(language);
+      setThemeState(preferences.theme || "system");
     };
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
+    void load().catch(() => {
+      if (alive) setLanguageState(detectBrowserLanguage());
+    });
+    const changed = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      area: string,
+    ) => {
+      if (
+        area === "sync" &&
+        (changes.workaround_language || changes.workaround_theme)
+      )
+        void load();
+    };
+    if (isExtension()) chrome.storage.onChanged.addListener(changed);
+    return () => {
+      alive = false;
+      if (isExtension()) chrome.storage.onChanged.removeListener(changed);
+    };
   }, []);
-
-  const setLanguage = useCallback((lang: Language) => {
-    setLanguageState(lang);
-    setT(getTranslations(lang));
-    
-    if (isChromeExtension()) {
-      chrome.storage.sync.set({ [LANGUAGE_KEY]: lang });
-    }
+  useEffect(() => {
+    applyTheme(theme);
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const changed = () => applyTheme(theme);
+    query.addEventListener("change", changed);
+    return () => query.removeEventListener("change", changed);
+  }, [theme]);
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+  const setLanguage = useCallback((language: Language) => {
+    setLanguageState(language);
+    if (isExtension()) void repository.savePreferences({ language });
   }, []);
-
-  const setTheme = useCallback((newTheme: Theme) => {
-    setThemeState(newTheme);
-    applyTheme(newTheme);
-    
-    if (isChromeExtension()) {
-      chrome.storage.sync.set({ [THEME_KEY]: newTheme });
-    }
+  const setTheme = useCallback((theme: Theme) => {
+    setThemeState(theme);
+    if (isExtension()) void repository.savePreferences({ theme });
   }, []);
-
-  return { 
-    language, 
-    setLanguage, 
+  return {
+    language,
+    setLanguage,
     theme,
     setTheme,
-    t,
-    availableLanguages: LANGUAGE_NAMES
+    t: getTranslations(language),
+    availableLanguages: LANGUAGE_NAMES,
   };
 }

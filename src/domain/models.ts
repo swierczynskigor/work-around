@@ -1,77 +1,108 @@
-/**
- * Represents statistics for a single visited site.
- */
 export interface SiteStats {
-  /** The domain name of the site (e.g., "google.com") */
   hostname: string;
-  /** URL to the favicon of the site */
   favIconUrl?: string;
-  /** Total time spent on this site in milliseconds */
   timeSpentMs: number;
-  /** Timestamp of the last visit (Date.now()) */
-  lastVisited: number; // timestamp
+  lastVisited: number;
 }
 
-/**
- * Defines a time window (start to end time)
- */
 export interface TimeWindow {
-  startHour: number;   // 0-23
-  startMinute: number; // 0-59
-  endHour: number;     // 0-23
-  endMinute: number;   // 0-59
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
 }
 
-/**
- * Defines a time limit rule for a specific domain.
- */
 export interface LimitRule {
-  /** The domain to limit */
   hostname: string;
-  /** Maximum allowed time per day in milliseconds */
   dailyLimitMs: number;
-  /** 
-   * Optional: Time windows when access is allowed.
-   * If set, the site is only accessible during these windows.
-   * Multiple windows supported (e.g., lunch break AND evening)
-   */
   allowedTimeWindows?: TimeWindow[];
 }
 
-/**
- * Reason why a site is blocked
- */
-export type BlockReason = 
-  | 'none'           // Not blocked
-  | 'time_limit'     // Daily time limit exceeded
-  | 'outside_hours'  // Outside allowed time window
-  | 'focus_mode'     // Global focus mode active
-  | 'youtube_shorts'; // YouTube Shorts blocked
-
-/**
- * Defines a recurring time window when access should be blocked entirely.
- * Useful for "Focus Hours".
- */
-export interface BlockedTimeWindow {
+export interface BudgetGroup {
   id: string;
-  startHour: number; // 0-23
-  startMinute: number; // 0-59
-  endHour: number;
-  endMinute: number;
-  daysOfWeek: number[]; // 0=Sunday, 1=Monday, etc.
+  name: string;
+  hostnames: string[];
+  dailyLimitMs: number;
+}
+
+export type BlockReason =
+  | "none"
+  | "time_limit"
+  | "outside_hours"
+  | "focus_mode"
+  | "youtube_shorts"
+  | "entry_delay";
+
+export interface BlockedTimeWindow extends TimeWindow {
+  id: string;
+  daysOfWeek: number[];
   isEnabled: boolean;
 }
 
-/**
- * Global application settings stored in Chrome Storage.
- */
 export interface AppSettings {
-  /** Whether time tracking is globally active */
   isTrackingEnabled: boolean;
-  /** Whether to block YouTube Shorts */
+  isBlockingEnabled?: boolean;
   blockYouTubeShorts?: boolean;
-  /** List of scheduled blocking windows */
   blockedWindows: BlockedTimeWindow[];
-  /** List of daily usage limits per site */
   limits: LimitRule[];
+  idleSeconds?: number;
+  countMedia?: boolean;
+  warningsEnabled?: boolean;
+  allowExtensions?: boolean;
+  strictMode?: boolean;
+  maxExtensionsPerDay?: number;
+  groups?: BudgetGroup[];
+  urlExceptions?: string[];
+  entryDelaySeconds?: number;
+}
+
+export type TrackingStatus =
+  | "tracking"
+  | "media"
+  | "disabled"
+  | "manual"
+  | "idle"
+  | "locked"
+  | "unfocused"
+  | "unsupported"
+  | "blocked"
+  | "sleep";
+export interface UsageRecord {
+  id: string;
+  hostname: string;
+  day: string;
+  startedAt: number;
+  endedAt: number;
+  durationMs: number;
+  kind: "active" | "media" | "legacy";
+}
+export interface TimeExtension {
+  id: string;
+  hostname: string;
+  day: string;
+  expiresAt: number;
+}
+export interface UsageData {
+  version: 2;
+  records: UsageRecord[];
+  extensions: TimeExtension[];
+}
+export interface PolicyDecision {
+  reason: BlockReason;
+  remainingMs: number | null;
+  usedMs: number;
+  limitMs: number | null;
+  budgetName: string | null;
+  resetAt: number | null;
+  canExtend: boolean;
+  extensionUntil: number | null;
+  isException: boolean;
+  delaySeconds: number;
+}
+export interface CurrentSessionInfo {
+  hostname: string | null;
+  currentSessionMs: number;
+  status: TrackingStatus;
+  pausedUntil: number | null;
+  policy: PolicyDecision | null;
 }

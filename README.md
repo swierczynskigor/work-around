@@ -66,6 +66,73 @@ To make changes and develop the project:
 
 This project is available under the MIT License. See the [LICENSE](LICENSE) file for more details.
 
+## Reliable tracking and focus tools
+
+- Tracking pauses when Chrome loses focus, the screen is locked, the configured
+  inactivity threshold is reached, or a manual pause is active. Tracking and
+  blocking have independent switches.
+- Only consecutive activity samples count. Gaps over 12 seconds, backward clock
+  jumps, and service worker restarts never generate catch-up usage. Chrome alarms
+  recover state; they do not prove that the user was present. This conservative
+  approach can omit a few seconds at uncertain boundaries.
+- Inactivity defaults to 3 minutes and can be changed to 1, 5, 10 or 30 minutes.
+  Opt-in media tracking allows visible video during inactivity and audible,
+  unmuted background playback. Locking the screen always pauses it. Muted
+  background video does not count. Duplicate tabs on one domain count once;
+  shared budgets count the union of overlapping intervals.
+- The popup shows the tracking status, remaining budget, a 15-minute tracking
+  pause with automatic resumption, and eligible five-minute access extensions.
+  Pausing tracking does not disable blocking.
+- Optional warnings appear at 5 minutes and 1 minute remaining. Blocking uses a
+  modal in an isolated shadow root. It pauses page media and preserves forms,
+  page state and scroll position. Unblocking does not reload the page; media can
+  be resumed manually.
+- Extensions expire after five wall-clock minutes. Their daily maximum applies
+  across all sites. Strict mode disables them, including an existing extension.
+  They never bypass focus schedules, allowed-hours rules or Shorts blocking.
+- Settings include editable shared daily budgets, allowed URL exceptions,
+  weekday/overnight focus schedules, and a 0–60 second entry delay for limited
+  sites. An unfinished entry countdown resets when the tab loses focus.
+- A URL exception bypasses both blocking and tracking. A path includes its
+  subpaths, with a path boundary check. If a query string is supplied, it must
+  match exactly, including parameter order. Scheme and port must also match;
+  `www.` is normalized.
+- Activity history retains the last 30 local calendar days. Removing a session
+  requires confirmation and immediately recalculates daily and group budgets.
+  Day boundaries follow local time, including daylight-saving changes.
+
+Existing domain limits, schedules, language and theme are retained. Old usage
+is imported once as daily totals, with `www.` duplicates merged using the higher
+value. Old storage remains untouched as a backup; imported totals cannot recover
+precise session times that were never recorded. All new usage mutations run
+through the background worker to avoid concurrent writes across tabs.
+
+## Verification
+
+```bash
+npm test
+npm run lint
+npm run build
+node scripts/validate-build.js
+```
+
+The regression suite covers sleep gaps, clock changes, restart boundaries,
+manual pauses, disabled tracking, idle/locked state, media deduplication, local
+midnight/DST, overnight schedules, URL exceptions, group overlap, extensions,
+entry countdowns, migration, corrections and storage error recovery.
+
+After building, reload the unpacked extension from `out` in
+`chrome://extensions` and accept the new `idle` permission if Chrome requests it.
+Chrome 120 or newer is required. Reload existing website tabs after updating so
+that they receive the new content script.
+
+For a device-level acceptance check, leave a tracked page open, close the laptop
+for several minutes, wake it, and verify that the absence did not consume the
+budget. Also check screen locking, switching to another app, a long article with
+a chosen inactivity threshold, media tracking on/off, and a filled unsaved form
+before and after blocking. Native sleep events should be verified on each target
+operating system; automated tests simulate the timing and state transitions.
+
 ## App icon
 
 The original WorkAround mark is `public/icons/workaround.svg`: a paused clock in

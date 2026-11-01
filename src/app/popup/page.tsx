@@ -1,6 +1,6 @@
 "use client";
 import { AppIcon } from "@/components/AppIcon";
-
+import { useState } from "react";
 import { useStats } from "@/hooks/useStats";
 import { useI18n } from "@/hooks/useI18n";
 import { StatsCard } from "@/components/StatsCard";
@@ -8,75 +8,139 @@ import { Button } from "@/components/ui/button";
 import { Settings } from "lucide-react";
 import { formatDuration } from "@/lib/utils";
 import { getFaviconUrl } from "@/lib/favicon";
+import { experienceCopy } from "@/lib/experience-i18n";
+import { sendCommand, isExtension } from "@/data/extensionClient";
 
 export default function PopupPage() {
-  const { stats, currentTabStats, currentHostname, currentLimit } = useStats();
-  const { t } = useI18n();
-
-  // Sort stats by time spent (descending)
-  const sortedStats = [...stats].sort((a, b) => b.timeSpentMs - a.timeSpentMs);
-
-  const openOptions = () => {
+  const { stats, currentTabStats, session, refresh, error } = useStats();
+  const { t, language } = useI18n();
+  const copy = experienceCopy(language);
+  const [actionError, setActionError] = useState(""),
+    [busy, setBusy] = useState(false);
+  const policy = session?.policy;
+  async function action(type: string, payload = {}) {
+    setBusy(true);
     try {
-      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.openOptionsPage) {
-        chrome.runtime.openOptionsPage();
-      } else {
-        window.open('./options.html', '_blank');
-      }
-    } catch (e) {
-      console.error('Failed to open options:', e);
-      window.open('./options.html', '_blank');
+      await sendCommand(type, payload);
+      await refresh();
+      setActionError("");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : copy.error);
+    } finally {
+      setBusy(false);
     }
-  };
-
+  }
   return (
-    <div className="w-[350px] h-[500px] bg-background flex flex-col p-4">
-      <header className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold flex items-center gap-2.5"><AppIcon />{t.popup.title}</h1>
-        <Button variant="ghost" size="icon" onClick={openOptions}>
+    <div className="w-[350px] h-[580px] bg-background flex flex-col p-4 gap-3">
+      <header className="flex justify-between items-center">
+        <h1 className="text-xl font-bold flex items-center gap-2.5">
+          <AppIcon />
+          {t.popup.title}
+        </h1>
+        <Button
+          aria-label={copy.settings}
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            if (isExtension())
+              void chrome.tabs.create({
+                url: chrome.runtime.getURL("options.html"),
+              });
+            else window.open("./options.html", "_blank");
+          }}
+        >
           <Settings className="h-5 w-5" />
         </Button>
       </header>
-      
-      <main className="flex-1 flex flex-col gap-4 overflow-hidden">
-        <section className="flex-shrink-0">
-          <h2 className="text-sm text-muted-foreground mb-2">{t.popup.currentSite}</h2>
+      <div className="rounded-lg border p-3 space-y-2">
+        <p className="text-sm" role="status">
+          <span
+            className={`inline-block w-2 h-2 rounded-full mr-2 ${session?.status === "tracking" || session?.status === "media" ? "bg-primary" : "bg-muted-foreground"}`}
+          />
+          {session ? copy[session.status] : t.popup.notValidSite}
+        </p>
+        {session?.pausedUntil && (
+          <p className="text-xs text-muted-foreground">
+            {new Date(session.pausedUntil).toLocaleTimeString(language)}
+          </p>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy || session?.status === "disabled"}
+          onClick={() =>
+            void action("PAUSE_TRACKING", {
+              minutes: session?.pausedUntil ? 0 : 15,
+            })
+          }
+        >
+          {session?.pausedUntil ? copy.resume : copy.pause}
+        </Button>
+      </div>
+      {(error || actionError) && (
+        <p role="alert" className="text-sm text-destructive">
+          {error || actionError}
+        </p>
+      )}
+      <main className="flex-1 flex flex-col gap-3 min-h-0">
+        <section className="space-y-2">
+          <h2 className="text-sm text-muted-foreground">
+            {t.popup.currentSite}
+          </h2>
           {currentTabStats ? (
-            <StatsCard stats={currentTabStats} limit={currentLimit} translations={t} />
+            <StatsCard
+              stats={currentTabStats}
+              translations={t}
+              policy={policy}
+            />
           ) : (
-            <div className="text-sm text-center p-4 border rounded-md">
-              {currentHostname ? (
-                  <div className="flex flex-col gap-2">
-                      <span>{t.popup.noStats} <strong>{currentHostname}</strong></span>
-                      <p className="text-xs text-muted-foreground">{t.popup.goToOptions}</p>
-                  </div>
-              ) : t.popup.notValidSite}
-            </div>
+            <p className="text-sm border rounded p-3">{t.popup.notValidSite}</p>
+          )}
+          {policy?.budgetName && (
+            <p className="text-xs text-muted-foreground">
+              {copy.budget}: {policy.budgetName}
+            </p>
+          )}
+          {policy?.extensionUntil && (
+            <p className="text-xs">
+              {copy.extensionEnds}:{" "}
+              {new Date(policy.extensionUntil).toLocaleTimeString(language)}
+            </p>
+          )}
+          {policy?.canExtend && (
+            <Button size="sm" disabled={busy} onClick={() => void action("EXTEND_TIME")}>{copy.extra}</Button>
           )}
         </section>
-
-        <section className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <h2 className="text-sm text-muted-foreground mb-2 flex-shrink-0">{t.popup.topSitesToday}</h2>
-          <div className="flex-1 border rounded-md overflow-y-auto">
-            <div className="p-2 space-y-2">
-              {sortedStats.map(stat => (
-                <div key={stat.hostname} className="flex justify-between items-center text-sm p-2 bg-muted/50 rounded">
-                   <div className="flex items-center gap-2 overflow-hidden">
-                      <img 
-                        src={getFaviconUrl(stat.hostname, 16)} 
-                        alt="" 
-                        className="w-4 h-4 flex-shrink-0" 
-                        loading="lazy"
-                      />
-                      <span className="truncate max-w-[150px]">{stat.hostname}</span>
-                   </div>
-                   <span className="font-mono text-xs">{formatDuration(stat.timeSpentMs)}</span>
+        <section className="flex-1 flex flex-col min-h-0 gap-2">
+          <h2 className="text-sm text-muted-foreground">
+            {t.popup.topSitesToday}
+          </h2>
+          <div className="flex-1 border rounded-md overflow-y-auto p-2 space-y-2">
+            {[...stats]
+              .sort((a, b) => b.timeSpentMs - a.timeSpentMs)
+              .map((stat) => (
+                <div
+                  key={stat.hostname}
+                  className="flex justify-between items-center gap-2 text-sm p-2 bg-muted/50 rounded"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <img
+                      src={getFaviconUrl(stat.hostname, 16)}
+                      alt=""
+                      className="w-4 h-4"
+                    />
+                    <span className="truncate">{stat.hostname}</span>
+                  </div>
+                  <span className="font-mono text-xs whitespace-nowrap">
+                    {formatDuration(stat.timeSpentMs)}
+                  </span>
                 </div>
               ))}
-              {sortedStats.length === 0 && (
-                 <div className="text-muted-foreground text-center py-4">{t.popup.noActivity}</div>
-              )}
-            </div>
+            {!stats.length && (
+              <p className="text-muted-foreground text-center py-4">
+                {copy.noActivity}
+              </p>
+            )}
           </div>
         </section>
       </main>

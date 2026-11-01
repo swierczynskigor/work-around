@@ -39,6 +39,14 @@ graph TD
 - `src/hooks`: settings, preferences and activity subscriptions for React.
 - `src/components/ProductivitySettings.tsx`: groups, URL exceptions,
   tracking controls and confirmed session corrections.
+- `src/components/FocusPanel.tsx`: schedule list, preset previews and day/time
+  editor. `src/services/focus.ts` validates schedule creation and edits.
+- `src/services/PinService.ts`: local PIN configuration, PBKDF2 verification,
+  protected-domain matching and persistent attempt throttling. Management and
+  extension-grant commands run through the background queue.
+- `src/hooks/usePinSettings.ts`: public PIN status subscriptions and management
+  commands. UI contexts receive configuration metadata, never credentials.
+
 ## Data and compatibility
 
 `workaround_settings` remains in sync storage. Optional new fields are normalized
@@ -56,6 +64,17 @@ migration backup and is no longer written.
 
 `workaround_activity_v2` in session storage holds the temporary manual pause.
 Unconfirmed timestamps from older workers are never restored as billable time.
+
+`workaround_pin_v1` in local storage holds a random 16-byte salt, PBKDF2-SHA-256
+hash (600,000 iterations), protected domains and failed-attempt/lock state. The
+credential and selection stay on the same device. A five-attempt lock lasts one
+minute. PIN changes, domain changes and removal require verification. Only
+extension UI senders can manage protection; website content scripts can request
+policy decisions and attempt time extensions for their own tab. The background
+derives the hostname from the browser tab and verifies any required PIN before
+persisting a grant. Public status contains no salt or hash. A PIN does not bypass
+other policy decisions, and does not prevent the browser owner from disabling
+the extension or editing extension data.
 
 ## Build and verification
 

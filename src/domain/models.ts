@@ -34,6 +34,7 @@ export type BlockReason =
   | "entry_delay";
 
 export interface BlockedTimeWindow extends TimeWindow {
+  name?: string;
   id: string;
   daysOfWeek: number[];
   isEnabled: boolean;
@@ -95,6 +96,7 @@ export interface PolicyDecision {
   budgetName: string | null;
   resetAt: number | null;
   canExtend: boolean;
+  pinRequired: boolean;
   extensionUntil: number | null;
   isException: boolean;
   delaySeconds: number;
@@ -105,4 +107,19 @@ export interface CurrentSessionInfo {
   status: TrackingStatus;
   pausedUntil: number | null;
   policy: PolicyDecision | null;
+}
+
+export interface PinState {
+  version: 1;
+  salt: string;
+  hash: string;
+  iterations: number;
+  protectedDomains: string[];
+  failedAttempts: number;
+  lockedUntil: number;
+}
+export interface PinStatus {
+  isConfigured: boolean;
+  protectedDomains: string[];
+  lockedUntil: number;
 }

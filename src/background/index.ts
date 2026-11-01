@@ -1,12 +1,20 @@
 import {
+  PinError,
+  PinService,
+  pinStatus,
+  requiresPin,
+} from "../services/PinService";
+import {
   ChromeStorageRepository,
   SETTINGS_KEY,
   USAGE_KEY,
+  PIN_KEY,
 } from "../data/ChromeStorageRepository";
 import {
   AppSettings,
   CurrentSessionInfo,
   PolicyDecision,
+  PinState,
   TrackingStatus,
   UsageData,
 } from "../domain/models";
@@ -24,6 +32,8 @@ import {
 
 const repository = new ChromeStorageRepository();
 const tracker = new ActivityTracker();
+const pins = new PinService(repository);
+let pinState: PinState | null = null;
 let settings: AppSettings = DEFAULT_SETTINGS;
 let usage: UsageData = { version: 2, records: [], extensions: [] };
 let pausedUntil: number | null = null;
@@ -45,6 +55,7 @@ async function initialize() {
     repository.getSettings(),
     repository.getUsage(),
   ]);
+  pinState = await repository.getPinState();
   const session = await repository.getSession<{
     pausedUntil?: number | null;
   }>();
@@ -62,12 +73,15 @@ let queue: Promise<unknown> = initialize();
 function enqueue<T>(operation: () => Promise<T>): Promise<T> {
   const next = queue.then(operation);
   queue = next.catch((error) => {
-    console.error("[WorkAround]", error);
+    if (!(error instanceof PinError)) console.error("[WorkAround]", error);
   });
   return next;
 }
 function decision(url: string, now = Date.now()): PolicyDecision {
-  return evaluatePolicy(url, settings, usage, now);
+  return {
+    ...evaluatePolicy(url, settings, usage, now),
+    pinRequired: requiresPin(hostnameFromUrl(url), pinState),
+  };
 }
 
 async function sample(force = false, closePrevious = false): Promise<void> {
@@ -229,7 +243,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (
     (area === "sync" && changes[SETTINGS_KEY]) ||
-    (area === "local" && changes[USAGE_KEY])
+    (area === "local" && (changes[USAGE_KEY] || changes[PIN_KEY]))
   ) {
     void enqueue(async () => {
       if (area === "sync") {
@@ -239,6 +253,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
         tracker.reset();
       }
       usage = await repository.getUsage();
+      if (changes[PIN_KEY]) pinState = await repository.getPinState();
       if (area === "sync") await sample(true);
     });
   }
@@ -257,10 +272,28 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         "PAUSE_TRACKING",
         "DELETE_RECORD",
         "EXTEND_TIME",
+        "GET_PIN_STATUS",
+        "CONFIGURE_PIN",
+        "REMOVE_PIN",
       ]
     : ["PAGE_STATUS", "EXTEND_TIME", "OPEN_OPTIONS"];
   if (!allowed.includes(type)) return false;
   void enqueue(async () => {
+    if (type === "GET_PIN_STATUS")
+      return pinStatus(await repository.getPinState());
+    if (type === "CONFIGURE_PIN" || type === "REMOVE_PIN") {
+      try {
+        return type === "REMOVE_PIN"
+          ? await pins.remove(message.currentPin)
+          : await pins.configure(
+              message.currentPin,
+              message.newPin,
+              message.domains,
+            );
+      } finally {
+        pinState = await repository.getPinState();
+      }
+    }
     if (type === "OPEN_OPTIONS") {
       await chrome.tabs.create({ url: chrome.runtime.getURL("options.html") });
       return { ok: true };
@@ -327,6 +360,13 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         hostname = hostnameFromUrl(url);
       if (!hostname || !policy.canExtend)
         throw new Error("A time extension is not available.");
+      if (policy.pinRequired) {
+        try {
+          await pins.verify(message.pin);
+        } finally {
+          pinState = await repository.getPinState();
+        }
+      }
       const now = Date.now();
       await repository.mutateUsage((data) => {
         data.extensions.push({
@@ -344,6 +384,9 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     .then(respond)
     .catch((error) =>
       respond({
+        ...(error instanceof PinError
+          ? { code: error.code, lockedUntil: error.lockedUntil }
+          : {}),
         error:
           error instanceof Error
             ? error.message

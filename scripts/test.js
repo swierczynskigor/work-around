@@ -5,7 +5,7 @@ const { join } = require("node:path");
 const { spawnSync } = require("node:child_process");
 const directory = mkdtempSync(join(tmpdir(), "workaround-tests-"));
 try {
-  const files = ["core", "background"].map((name) => {
+  const files = ["core", "background", "pin"].map((name) => {
     const outfile = join(directory, `${name}.test.cjs`);
     buildSync({
       entryPoints: [`tests/${name}.test.ts`],

@@ -5,6 +5,7 @@ import { CurrentSessionInfo } from "../src/domain/models";
 import {
   USAGE_KEY,
   SETTINGS_KEY,
+  PIN_KEY,
 } from "../src/data/ChromeStorageRepository";
 
 const firefox = process.env.WORKAROUND_TEST_BROWSER === "firefox";
@@ -258,7 +259,104 @@ test(`${firefox ? "Firefox" : "Chrome"} background integration: sleep, idle, loc
     response = (await pulse()) as typeof response;
     assert.equal(response.policy.reason, "none");
 
-    await settings({ entryDelaySeconds: 0 });
+    // A real options page has a sender.tab too; it must retain UI-only permissions.
+    const options = {
+      ...ui,
+      url: `${protocol}://extension/options.html`,
+      tab: { id: 99 },
+    };
+    const configured = await send<{ isConfigured: boolean }>(
+      "CONFIGURE_PIN",
+      { newPin: "1234", domains: ["example.com"] },
+      options,
+    );
+    assert.equal(configured.isConfigured, true);
+    const publicStatus = await send<Record<string, unknown>>("GET_PIN_STATUS");
+    assert.equal(publicStatus.hash, undefined);
+    let unauthorizedResponse = false;
+    listener({ type: "REMOVE_PIN", currentPin: "1234" }, sender(1), () => {
+      unauthorizedResponse = true;
+    });
+    await flush();
+    assert.equal(
+      unauthorizedResponse,
+      false,
+      "content scripts cannot configure protection",
+    );
+    assert.ok(local[PIN_KEY]);
+    await settings({
+      limits: [{ hostname: "example.com", dailyLimitMs: 0 }],
+      entryDelaySeconds: 0,
+      maxExtensionsPerDay: 10,
+    });
+    const getUsage = () => local[USAGE_KEY] as { extensions: unknown[] };
+    const count = getUsage().extensions.length;
+    const blocked = await send<CurrentSessionInfo>("GET_CURRENT_SESSION");
+    assert.equal(blocked.policy?.pinRequired, true);
+    assert.equal(
+      (await send<{ code: string }>("EXTEND_TIME", {}, sender(1))).code,
+      "PIN_INVALID",
+    );
+    assert.equal(
+      (await send<{ code: string }>("EXTEND_TIME", { pin: "0000" }, sender(1)))
+        .code,
+      "PIN_INVALID",
+    );
+    assert.equal(
+      getUsage().extensions.length,
+      count,
+      "failed PINs cannot grant any time",
+    );
+    assert.equal(
+      (
+        await send<{ code: string }>("CONFIGURE_PIN", {
+          currentPin: "0000",
+          domains: [],
+        })
+      ).code,
+      "PIN_INVALID",
+    );
+    assert.equal(
+      (await send<{ ok: boolean }>("EXTEND_TIME", { pin: "1234" }, sender(1)))
+        .ok,
+      true,
+    );
+    assert.equal(getUsage().extensions.length, count + 1);
+    now += 300_001;
+    await settings({ strictMode: true });
+    assert.ok(
+      (await send<{ error: string }>("EXTEND_TIME", { pin: "1234" }, sender(1)))
+        .error,
+      "PIN cannot bypass strict mode",
+    );
+    await settings({ strictMode: false });
+    tabs[0].url = "https://sub.example.com/";
+    assert.equal(
+      (await send<CurrentSessionInfo>("GET_CURRENT_SESSION")).policy
+        ?.pinRequired,
+      true,
+    );
+    tabs[0].url = "https://other.test/";
+    await settings({ limits: [{ hostname: "other.test", dailyLimitMs: 0 }] });
+    assert.equal(
+      (await send<CurrentSessionInfo>("GET_CURRENT_SESSION")).policy
+        ?.pinRequired,
+      false,
+    );
+    assert.equal(
+      (await send<{ ok: boolean }>("EXTEND_TIME", {}, sender(1))).ok,
+      true,
+      "unprotected sites need no PIN",
+    );
+    assert.equal(
+      (
+        await send<{ isConfigured: boolean }>("REMOVE_PIN", {
+          currentPin: "1234",
+        })
+      ).isConfigured,
+      false,
+    );
+
     tabs[0].url = "https://www.facebook.com/";
     now = new Date(2026, 9, 30, 8).getTime();
     await settings({

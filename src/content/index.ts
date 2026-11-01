@@ -1,4 +1,5 @@
 import { CommandError } from "../data/extensionClient";
+import { focusSecurityCopy, pinErrorText } from "../lib/focus-security-i18n";
 import { ChromeStorageRepository } from "../data/ChromeStorageRepository";
 import { PolicyDecision } from "../domain/models";
 import { experienceCopy } from "../lib/experience-i18n";
@@ -91,7 +92,7 @@ function button(text: string, action: () => void | Promise<void>) {
 }
 function showBlock(policy: PolicyDecision) {
   const copy = experienceCopy(language);
-  const key = `${policy.reason}:${policy.canExtend}:${language}`;
+  const key = `${policy.reason}:${policy.canExtend}:${policy.pinRequired}:${language}`;
   if (key !== currentKey || !host?.isConnected) {
     clearBlock();
     currentKey = key;
@@ -113,10 +114,13 @@ function showBlock(policy: PolicyDecision) {
       p[role="alert"] { color: #fb8b9e; }
       button { background: #233650; color: #d9ebff; border: 1px solid #304663; border-radius: 10px; padding: 12px 18px; margin: 6px; font: inherit; cursor: pointer; transition: background .15s; }
       button:hover { background: #234561; }
-      button:first-of-type { background: #7dd3fc; color: #10151f; border-color: #7dd3fc; }
-      button:first-of-type:hover { background: #bae6fd; }
+      button.primary { background: #7dd3fc; color: #10151f; border-color: #7dd3fc; }
+      button.primary:hover { background: #bae6fd; }
       button:focus-visible { outline: 3px solid #7dd3fc; outline-offset: 3px; }
-      button:disabled { opacity: .5; }`,
+      button:disabled, input:disabled { opacity: .5; }
+      label { display: block; color: #d9ebff; margin: 12px 0 6px; }
+      input { display: block; box-sizing: border-box; width: 220px; max-width: 100%; margin: 0 auto 10px; background: #172235; border: 1px solid #506b8e; border-radius: 8px; color: #eef6ff; padding: 10px 12px; font: inherit; text-align: center; }
+      input:focus { outline: 2px solid #7dd3fc; outline-offset: 2px; }`,
     );
     dialog = element("dialog");
     dialog.setAttribute("aria-labelledby", "workaround-title");
@@ -135,11 +139,46 @@ function showBlock(policy: PolicyDecision) {
     errorLabel = element("p");
     errorLabel.setAttribute("role", "alert");
     dialog.append(element("span", "WorkAround"), title, message, detail);
-    if (policy.canExtend)
-      dialog.append(button(copy.extra, async () => {
-        await command("EXTEND_TIME");
-        await check();
-      }));
+    if (policy.canExtend) {
+      const form = element("form");
+      const pin = element("input");
+      if (policy.pinRequired) {
+        const label = element("label", focusSecurityCopy(language).pinRequired);
+        pin.id = "workaround-pin";
+        label.htmlFor = pin.id;
+        pin.type = "password";
+        pin.inputMode = "numeric";
+        pin.autocomplete = "off";
+        pin.maxLength = 8;
+        pin.pattern = "[0-9]{4,8}";
+        pin.required = true;
+        form.append(label, pin);
+      }
+      const extend = element("button", copy.extra);
+      extend.type = "submit";
+      extend.className = "primary";
+      form.append(extend);
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (extend.disabled) return;
+        const value = pin.value;
+        pin.value = "";
+        pin.disabled = true;
+        extend.disabled = true;
+        if (errorLabel) errorLabel.textContent = "";
+        void command("EXTEND_TIME", { pin: value })
+          .then(() => check())
+          .catch((error) => {
+            if (errorLabel)
+              errorLabel.textContent = pinErrorText(error, language);
+          })
+          .finally(() => {
+            pin.disabled = false;
+            extend.disabled = false;
+          });
+      });
+      dialog.append(form);
+    }
     if (policy.reason === "youtube_shorts")
       dialog.append(
         button(copy.returnYouTube, () => {

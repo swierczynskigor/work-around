@@ -147,3 +147,34 @@ This regenerates true-size PNG exports at 16, 32, 48, 96, 128, 256 and 512 pixel
 and a multi-resolution favicon from the SVG. Normal builds
 run this step automatically. Edit the SVG to change the design; the PNGs and ICO
 are derived assets. Build validation checks manifest icon dimensions.
+
+## Security PIN and focus schedules
+
+In **Settings → Security PIN**, set a 4–8 digit PIN and select protected domains
+(one per line, or use the domain shortcuts). Only these domains and their
+subdomains require a PIN for extra time. Domains can belong to individual limits
+or shared budgets. An empty selection protects no sites. Changing the PIN,
+changing the selection, or removing protection requires the current PIN.
+
+Protected sites ask for the PIN both in the popup and on the blocking screen.
+Five failed attempts pause PIN verification for one minute, including across
+background restarts. Existing extension limits, strict mode, focus schedules and
+allowed-hours rules still apply. Credentials are salted and derived with
+PBKDF2-HMAC-SHA-256 (600,000 iterations); the plain PIN is never stored. The PIN
+and protected-domain selection are local to this device and do not sync.
+This is an in-extension friction mechanism: someone who controls the browser can
+still disable the extension or clear its data. There is no PIN recovery service;
+clearing extension data also removes its configuration.
+
+The **Focus** tab contains schedules only. Choose a workday/evening preset or
+**Add schedule**, pick days and hours, review the summary, and save. Presets do
+not activate until saved. Overnight schedules show an explicit next-day notice.
+Schedules can be named, paused, edited and removed; editing a paused schedule
+keeps it paused. Existing unnamed schedules remain available. Focus blocks all
+websites except allowed URL exceptions. General tracking/blocking controls live
+in **Settings**; shared budgets and allowed URLs live in **Limits**.
+
+The automated tests also cover PIN setup, hashed storage, domain matching,
+credential changes/removal, throttling across service restarts, protected and
+unprotected extension commands in both browser API variants, and preservation
+of paused and overnight schedules.

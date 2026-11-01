@@ -1,4 +1,6 @@
 "use client";
+import { FocusPanel } from "@/components/FocusPanel";
+import { PinSettings } from "@/components/PinSettings";
 
 import { AppIcon } from "@/components/AppIcon";
 
@@ -301,10 +303,14 @@ export default function OptionsPage() {
           </p>
         )}
         <Tabs defaultValue="limits" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 h-auto mb-6">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto mb-6">
             <TabsTrigger value="limits" className="gap-2">
               <ListChecks className="w-4 h-4" />
               {t.options.tabLimits}
+            </TabsTrigger>
+            <TabsTrigger value="tools" className="gap-2">
+              <Clock className="w-4 h-4" />
+              {copy.tools}
             </TabsTrigger>
             <TabsTrigger value="activity" className="gap-2">
               <ListChecks className="w-4 h-4" />
@@ -487,12 +493,20 @@ export default function OptionsPage() {
             />
           </TabsContent>
 
+          <TabsContent value="tools" className="space-y-6">
+            <FocusPanel
+              settings={settings}
+              saveSettings={saveSettings}
+              language={language}
+            />
+          </TabsContent>
           <TabsContent value="activity" className="space-y-6">
             <ActivityHistory language={language} />
           </TabsContent>
 
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
+            <PinSettings settings={settings} language={language} />
             {/* General Settings */}
             <Card>
               <CardHeader>

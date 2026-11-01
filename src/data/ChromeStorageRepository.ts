@@ -1,6 +1,7 @@
 import { IStorageRepository } from "../domain/repositories";
 import {
   AppSettings,
+  PinState,
   SiteStats,
   UsageData,
   UsageRecord,
@@ -11,6 +12,7 @@ import {
   normalizeSettings,
 } from "../services/policies";
 
+export const PIN_KEY = "workaround_pin_v1";
 export const USAGE_KEY = "workaround_usage_v2";
 export const SETTINGS_KEY = "workaround_settings";
 export const SESSION_KEY = "workaround_activity_v2";
@@ -164,6 +166,15 @@ export class ChromeStorageRepository implements IStorageRepository {
       },
     ]);
     return (await this.getStats(hostname))!;
+  }
+  async getPinState(): Promise<PinState | null> {
+    return (
+      ((await chrome.storage.local.get(PIN_KEY))[PIN_KEY] as PinState | null) ||
+      null
+    );
+  }
+  async savePinState(state: PinState | null): Promise<void> {
+    await chrome.storage.local.set({ [PIN_KEY]: state });
   }
   async getSettings(): Promise<AppSettings> {
     const result = await chrome.storage.sync.get(SETTINGS_KEY);

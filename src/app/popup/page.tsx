@@ -1,4 +1,5 @@
 "use client";
+import { TimeExtensionForm } from "@/components/TimeExtensionForm";
 import { AppIcon } from "@/components/AppIcon";
 import { useState } from "react";
 import { useStats } from "@/hooks/useStats";
@@ -108,7 +109,12 @@ export default function PopupPage() {
             </p>
           )}
           {policy?.canExtend && (
-            <Button size="sm" disabled={busy} onClick={() => void action("EXTEND_TIME")}>{copy.extra}</Button>
+            <TimeExtensionForm
+              key={`${session?.hostname}:${policy.pinRequired}`}
+              pinRequired={policy.pinRequired}
+              language={language}
+              refresh={refresh}
+            />
           )}
         </section>
         <section className="flex-1 flex flex-col min-h-0 gap-2">

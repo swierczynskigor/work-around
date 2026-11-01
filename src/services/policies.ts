@@ -176,6 +176,7 @@ export function evaluatePolicy(
     budgetName: null,
     resetAt: null,
     canExtend: false,
+    pinRequired: false,
     extensionUntil: null,
     isException: false,
     delaySeconds: 0,

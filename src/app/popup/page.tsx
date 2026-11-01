@@ -78,6 +78,17 @@ export default function PopupPage() {
           {session?.pausedUntil ? copy.resume : copy.pause}
         </Button>
       </div>
+      {session?.contentConnected === false && (
+        <div
+          role="alert"
+          className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm space-y-2"
+        >
+          <p>{copy.contentUnavailable}</p>
+          <Button variant="outline" size="sm" onClick={() => void refresh()}>
+            {copy.retry}
+          </Button>
+        </div>
+      )}
       {(error || actionError) && (
         <p role="alert" className="text-sm text-destructive">
           {error || actionError}
@@ -96,6 +107,19 @@ export default function PopupPage() {
             />
           ) : (
             <p className="text-sm border rounded p-3">{t.popup.notValidSite}</p>
+          )}
+          {policy && policy.reason !== "none" && (
+            <p className="text-sm text-primary" role="status">
+              {copy[policy.reason]}
+              {policy.resetAt &&
+                ["outside_hours", "focus_mode"].includes(policy.reason) && (
+                  <>
+                    {" "}
+                    · {copy.available}:{" "}
+                    {new Date(policy.resetAt).toLocaleString(language)}
+                  </>
+                )}
+            </p>
           )}
           {policy?.budgetName && (
             <p className="text-xs text-muted-foreground">

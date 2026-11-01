@@ -123,8 +123,12 @@ entry countdowns, migration, corrections and storage error recovery.
 
 After building, reload the unpacked extension from `out` in
 `chrome://extensions` and accept the new `idle` permission if Chrome requests it.
-Chrome 120 or newer is required. Reload existing website tabs after updating so
-that they receive the new content script.
+Chrome 120 or newer is required. The background reconnects content scripts on
+already-open web pages after extension startup/reload and when a tab is activated.
+It probes existing controllers first and only injects a replacement when needed.
+If a browser restriction or missing host permission prevents this, the popup
+shows a connection warning. Refresh the affected tab and check the extension's
+website permissions in the browser's add-on settings.
 
 For a device-level acceptance check, leave a tracked page open, close the laptop
 for several minutes, wake it, and verify that the absence did not consume the
@@ -170,8 +174,10 @@ To load in Firefox or Zen:
 
 This is an unsigned development build. Temporary installation lasts until the
 browser restarts; load it again afterwards. For updates, rebuild and choose
-**Reload** on the debugging page, then refresh the website tabs. A permanent
-installation requires a separately signed Firefox package.
+**Reload** on the debugging page. Open web pages reconnect automatically; if the
+popup reports a connection problem, refresh the affected tab and check website
+permissions in `about:addons`. A permanent installation requires a separately
+signed Firefox package.
 
 ## App icon
 
@@ -218,3 +224,13 @@ The automated tests also cover PIN setup, hashed storage, domain matching,
 credential changes/removal, throttling across service restarts, protected and
 unprotected extension commands in both browser API variants, and preservation
 of paused and overnight schedules.
+
+### Troubleshooting allowed hours
+
+A site allowed from 18:00 to 23:00 is blocked before 18:00 and from 23:00 onwards,
+using the device's local clock. A `facebook.com` rule includes `www.facebook.com`
+and other subdomains. Allowed URL exceptions and the separate blocking switch
+still apply. Pausing time tracking does not disable allowed-hours blocking.
+The popup displays an active block reason and its next available time, and warns
+when the page controller could not be restored. After reloading an older build,
+refresh a website tab once if it still uses an invalidated content script.

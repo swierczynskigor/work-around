@@ -31,11 +31,21 @@ graph TD
   state; combines media reports with the browser's audible state. Sampling is
   throttled to four seconds, with exact observed tab/focus transitions committed
   separately. A gap over 12 seconds is discarded. Worker restarts start a fresh
-  observation instead of reconstructing elapsed wall time.
+  observation instead of reconstructing elapsed wall time. Policy/status requests
+  isolate activity API and usage-write failures so they cannot disable daily
+  limits or schedules. Failed entry-gate activity checks keep the gate paused.
+- `src/services/ContentScriptService.ts`: probes the main-frame content controller
+  and repairs a missing connection with `scripting.executeScript`. Runs after
+  background startup/install, on tab activation/completed navigation, and when
+  the popup requests the current session. Unsupported/discarded pages are skipped;
+  restricted pages return a visible disconnected status instead of a false success.
 - `src/content/index.ts`: reports playback, requests policy decisions and renders
   warnings or a native modal dialog in a shadow root. The page DOM is preserved.
   Visible pages check every second; hidden pages report every five seconds,
   subject to browser timer throttling. Entry countdowns require foreground use.
+  A private disposal callback removes old timers/listeners/dialogs on reinjection;
+  pending responses from disposed controllers cannot recreate stale blocks.
+  Main-frame ping responses let the background avoid duplicate controllers.
 - `src/hooks`: settings, preferences and activity subscriptions for React.
 - `src/components/ProductivitySettings.tsx`: groups, URL exceptions,
   tracking controls and confirmed session corrections.

@@ -33,6 +33,7 @@ try {
   files.push(
     firefoxBackground,
     resolve("tests/firefox-build.test.js"),
+    resolve("tests/content.test.js"),
   );
   const result = spawnSync(process.execPath, ["--test", ...files], {
     stdio: "inherit",

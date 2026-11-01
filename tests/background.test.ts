@@ -15,7 +15,8 @@ test(`${firefox ? "Firefox" : "Chrome"} background integration: sleep, idle, loc
   const originalNow = Date.now;
   let now = originalNow(),
     idle = "active",
-    focused = true;
+    focused = true,
+    failIdle = false;
   Date.now = () => now;
   const event = () => {
     const listeners: ((...args: unknown[]) => unknown)[] = [];
@@ -84,6 +85,9 @@ test(`${firefox ? "Firefox" : "Chrome"} background integration: sleep, idle, loc
     sender: unknown,
     respond: (value: unknown) => void,
   ) => void;
+  const connected = new Set<number>();
+  const injected: number[] = [];
+  let denyInjection = false;
   Object.assign(globalThis, {
     [firefox ? "browser" : "chrome"]: {
       storage: {
@@ -92,7 +96,16 @@ test(`${firefox ? "Firefox" : "Chrome"} background integration: sleep, idle, loc
         session: area(session, "session"),
         onChanged: changed,
       },
+      scripting: {
+        executeScript: async ({ target }: { target: { tabId: number } }) => {
+          if (denyInjection) throw new Error("Missing host permission");
+          injected.push(target.tabId);
+          connected.add(target.tabId);
+          return [{ frameId: 0 }];
+        },
+      },
       runtime: {
+        onInstalled: event(),
         id: "extension",
         getURL: (path: string) => `${protocol}://extension/${path}`,
         onMessage: {
@@ -105,6 +118,10 @@ test(`${firefox ? "Firefox" : "Chrome"} background integration: sleep, idle, loc
         get: async (id: number) => tabs.find((tab) => tab.id === id),
         query: async (query: { active?: boolean }) =>
           query.active ? tabs.filter((tab) => tab.active) : tabs,
+        sendMessage: async (id: number) => {
+          if (!connected.has(id)) throw new Error("No receiving end");
+          return { ready: true };
+        },
         onActivated: activated,
         onUpdated: updated,
         onRemoved: event(),
@@ -116,7 +133,10 @@ test(`${firefox ? "Firefox" : "Chrome"} background integration: sleep, idle, loc
         onFocusChanged: focus,
       },
       idle: {
-        queryState: async () => idle,
+        queryState: async () => {
+          if (failIdle) throw new Error("Idle API unavailable");
+          return idle;
+        },
         setDetectionInterval: () => undefined,
         onStateChanged: idleChanged,
       },
@@ -154,6 +174,35 @@ test(`${firefox ? "Firefox" : "Chrome"} background integration: sleep, idle, loc
   try {
     await import("../src/background/index");
     await pulse();
+    assert.deepEqual(
+      injected.sort(),
+      [1, 2],
+      "startup restores already-open tabs",
+    );
+    assert.equal(
+      (await send<CurrentSessionInfo>("GET_CURRENT_SESSION")).contentConnected,
+      true,
+    );
+    const beforePing = injected.length;
+    await send("GET_CURRENT_SESSION");
+    assert.equal(
+      injected.length,
+      beforePing,
+      "healthy content scripts are not re-injected",
+    );
+    connected.delete(1);
+    denyInjection = true;
+    assert.equal(
+      (await send<CurrentSessionInfo>("GET_CURRENT_SESSION")).contentConnected,
+      false,
+      "missing page access is visible in the popup",
+    );
+    denyInjection = false;
+    assert.equal(
+      (await send<CurrentSessionInfo>("GET_CURRENT_SESSION")).contentConnected,
+      true,
+      "a subsequent popup request repairs the connection",
+    );
     now += 5000;
     await pulse();
     assert.equal(total(), 5000);
@@ -380,6 +429,20 @@ test(`${firefox ? "Firefox" : "Chrome"} background integration: sleep, idle, loc
       "Facebook is blocked at 08:00 even while tracking is paused",
     );
     assert.equal(morning.policy.canExtend, false);
+    now += 5_000;
+    failIdle = true;
+    const withoutIdle = (await pulse()) as typeof morning;
+    assert.equal(
+      withoutIdle.policy?.reason,
+      "outside_hours",
+      "an unavailable activity API must not disable allowed-hours blocking",
+    );
+    const popupWithoutIdle = await send<CurrentSessionInfo>(
+      "GET_CURRENT_SESSION",
+    );
+    assert.equal(popupWithoutIdle.policy?.reason, "outside_hours");
+    failIdle = false;
+
     now = new Date(2026, 9, 30, 18).getTime();
     assert.equal(((await pulse()) as typeof morning).policy.reason, "none");
     now = new Date(2026, 9, 30, 23).getTime();

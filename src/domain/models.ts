@@ -104,6 +104,7 @@ export interface PolicyDecision {
 export interface CurrentSessionInfo {
   hostname: string | null;
   currentSessionMs: number;
+  contentConnected?: boolean | null;
   status: TrackingStatus;
   pausedUntil: number | null;
   policy: PolicyDecision | null;

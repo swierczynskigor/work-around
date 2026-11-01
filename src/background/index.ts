@@ -1,3 +1,4 @@
+import { ContentScriptService } from "../services/ContentScriptService";
 import {
   PinError,
   PinService,
@@ -31,6 +32,7 @@ import {
 } from "../services/policies";
 
 const repository = new ChromeStorageRepository();
+const contentScripts = new ContentScriptService();
 const tracker = new ActivityTracker();
 const pins = new PinService(repository);
 let pinState: PinState | null = null;
@@ -77,6 +79,11 @@ function enqueue<T>(operation: () => Promise<T>): Promise<T> {
   });
   return next;
 }
+// Manifest content scripts do not repair already-open documents after a reload.
+void enqueue(() => contentScripts.restoreOpenTabs());
+chrome.runtime.onInstalled.addListener(() => {
+  void enqueue(() => contentScripts.restoreOpenTabs());
+});
 function decision(url: string, now = Date.now()): PolicyDecision {
   return {
     ...evaluatePolicy(url, settings, usage, now),
@@ -179,6 +186,17 @@ async function sample(force = false, closePrevious = false): Promise<void> {
   }
 }
 
+async function sampleForStatus(): Promise<void> {
+  try {
+    await sample();
+  } catch (error) {
+    // Blocking must remain available when activity APIs or usage writes fail.
+    tracker.reset();
+    status = "unsupported";
+    console.warn("[WorkAround] Activity sampling unavailable", error);
+  }
+}
+
 async function pageStatus(tabId: number): Promise<PolicyDecision> {
   const tab = await chrome.tabs.get(tabId),
     url = tab.url || "";
@@ -191,8 +209,22 @@ async function pageStatus(tabId: number): Promise<PolicyDecision> {
     gate = { url, elapsed: 0, lastAt: 0, passed: false };
     gates.set(tabId, gate);
   }
-  const window = await chrome.windows.get(tab.windowId);
-  const idle = await chrome.idle.queryState(settings.idleSeconds || 180);
+  let window: chrome.windows.Window;
+  let idle: "active" | "idle" | "locked";
+  try {
+    window = await chrome.windows.get(tab.windowId);
+    idle = await chrome.idle.queryState(settings.idleSeconds || 180);
+  } catch {
+    // No confirmed foreground activity: keep the entry countdown paused.
+    gate.elapsed = 0;
+    gate.lastAt = 0;
+    return {
+      ...policy,
+      reason: "entry_delay",
+      remainingMs: policy.delaySeconds * 1000,
+      canExtend: false,
+    };
+  }
   if (
     window.focused &&
     tab.active &&
@@ -216,8 +248,12 @@ async function pageStatus(tabId: number): Promise<PolicyDecision> {
   return policy;
 }
 
-chrome.tabs.onActivated.addListener(() => {
-  void enqueue(() => sample(true, true));
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  void enqueue(async () => {
+    const tab = await chrome.tabs.get(tabId);
+    await contentScripts.ensure(tab);
+    await sample(true, true);
+  });
 });
 chrome.windows.onFocusChanged.addListener(() => {
   void enqueue(() => sample(true, true));
@@ -227,6 +263,11 @@ chrome.tabs.onUpdated.addListener((id, change) => {
     gates.delete(id);
     media.delete(id);
     void enqueue(() => sample(true, true));
+  }
+  if (change.status === "complete") {
+    void enqueue(async () => {
+      await contentScripts.ensure(await chrome.tabs.get(id));
+    });
   }
 });
 chrome.tabs.onRemoved.addListener((id) => {
@@ -303,20 +344,24 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         playing: message.playing === true,
         at: Date.now(),
       });
-      await sample();
+      await sampleForStatus();
       return {
         policy: await pageStatus(sender.tab!.id!),
         warningsEnabled: settings.warningsEnabled !== false,
       };
     }
     if (type === "GET_CURRENT_SESSION") {
-      await sample();
+      await sampleForStatus();
       const tabs = await chrome.tabs.query({
         active: true,
         lastFocusedWindow: true,
       });
       const url = tabs[0]?.url || activeUrl;
+      const contentConnected = tabs[0]
+        ? await contentScripts.ensure(tabs[0])
+        : null;
       return {
+        contentConnected,
         hostname: hostnameFromUrl(url),
         currentSessionMs: 0,
         status,

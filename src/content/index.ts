@@ -6,6 +6,19 @@ import { experienceCopy } from "../lib/experience-i18n";
 import { detectBrowserLanguage, Language } from "../lib/i18n";
 import { formatDuration } from "../lib/utils";
 
+// Re-injection replaces an old controller instead of stacking timers and dialogs.
+const controllerScope = globalThis as typeof globalThis & {
+  __workaroundDispose?: () => void;
+};
+try {
+  controllerScope.__workaroundDispose?.();
+} catch {
+  /* An old extension context may already be invalid. */
+}
+// Remove a stale overlay left by versions that had no disposal callback.
+for (const stale of document.querySelectorAll("#workaround-overlay"))
+  stale.remove();
+let disposed = false;
 let language: Language = detectBrowserLanguage();
 let host: HTMLDivElement | null = null;
 let dialog: HTMLDialogElement | null = null;
@@ -260,13 +273,14 @@ function warn(policy: PolicyDecision, enabled: boolean) {
   noticeTimeout = setTimeout(() => notice?.remove(), 12_000);
 }
 async function check() {
-  if (checking || !chrome.runtime?.id) return;
+  if (disposed || checking || !chrome.runtime?.id) return;
   checking = true;
   try {
     const { policy, warningsEnabled } = await command<{
       policy: PolicyDecision;
       warningsEnabled: boolean;
     }>("PAGE_STATUS");
+    if (disposed) return;
     if (policy.reason !== "none") {
       notice?.remove();
       showBlock(policy);
@@ -279,6 +293,19 @@ async function check() {
   } finally {
     checking = false;
   }
+}
+function ping(
+  message: { type?: string },
+  sender: chrome.runtime.MessageSender,
+  respond: (value: unknown) => void,
+) {
+  if (
+    !disposed &&
+    sender.id === chrome.runtime.id &&
+    message?.type === "WORKAROUND_CONTENT_PING"
+  )
+    respond({ ready: true });
+  return false;
 }
 function onVisibilityChange() {
   void check();
@@ -295,14 +322,33 @@ function onPause() {
 function onNavigation() {
   void check();
 }
-setInterval(() => {
+const visibleTimer = setInterval(() => {
   if (document.visibilityState === "visible") void check();
 }, 1000);
-setInterval(() => {
+const hiddenTimer = setInterval(() => {
   if (document.visibilityState !== "visible") void check();
 }, 5000);
+chrome.runtime.onMessage.addListener(ping);
 document.addEventListener("visibilitychange", onVisibilityChange);
 document.addEventListener("play", onPlay, true);
 document.addEventListener("pause", onPause, true);
 window.addEventListener("popstate", onNavigation);
+controllerScope.__workaroundDispose = () => {
+  disposed = true;
+  clearInterval(visibleTimer);
+  clearInterval(hiddenTimer);
+  if (noticeTimeout) clearTimeout(noticeTimeout);
+  notice?.remove();
+  clearBlock();
+  document.removeEventListener("visibilitychange", onVisibilityChange);
+  document.removeEventListener("play", onPlay, true);
+  document.removeEventListener("pause", onPause, true);
+  window.removeEventListener("popstate", onNavigation);
+  try {
+    chrome.storage.onChanged.removeListener(onStorageChanged);
+    chrome.runtime.onMessage.removeListener(ping);
+  } catch {
+    /* Reloading can invalidate the old extension API objects. */
+  }
+};
 void check();

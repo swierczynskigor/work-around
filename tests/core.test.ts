@@ -371,3 +371,35 @@ test("Facebook's 18:00–23:00 window blocks morning and boundary access across 
     new Date(2026, 9, 30, 18).getTime(),
   );
 });
+
+
+test("blocking defaults on independently of tracking in fresh and legacy settings", () => {
+  const morning = new Date(2026, 10, 1, 8).getTime();
+  const limits = [
+    {
+      hostname: "facebook.com",
+      dailyLimitMs: 3_600_000,
+      allowedTimeWindows: [
+        { startHour: 18, startMinute: 0, endHour: 23, endMinute: 0 },
+      ],
+    },
+  ];
+  assert.equal(normalizeSettings().isBlockingEnabled, true);
+  for (const isTrackingEnabled of [true, false]) {
+    const legacy = normalizeSettings({ isTrackingEnabled, limits });
+    assert.equal(
+      evaluatePolicy("https://www.facebook.com/", legacy, empty(), morning).reason,
+      "outside_hours",
+    );
+    const disabled = normalizeSettings({
+      isTrackingEnabled,
+      isBlockingEnabled: false,
+      limits,
+    });
+    assert.equal(
+      evaluatePolicy("https://www.facebook.com/", disabled, empty(), morning).reason,
+      "none",
+      "an explicit blocking preference is preserved",
+    );
+  }
+});

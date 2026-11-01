@@ -61,8 +61,9 @@ graph TD
 
 `workaround_settings` remains in sync storage. Optional new fields are normalized
 at the repository boundary, so existing installations keep their limits and
-schedules. A legacy disabled master switch initially disables both tracking and
-blocking; afterwards they can be configured independently.
+schedules. Blocking defaults to enabled for fresh settings and legacy settings
+without an explicit blocking preference, independently of the tracking switch.
+An explicitly saved blocking preference is preserved.
 
 `workaround_usage_v2` in local storage holds observed session intervals and daily
 extension grants. Consecutive intervals of one domain/source/day are coalesced.

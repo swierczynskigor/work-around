@@ -227,6 +227,10 @@ of paused and overnight schedules.
 
 ### Troubleshooting allowed hours
 
+Blocking is enabled by default, including for older settings that only had a
+tracking switch. Disabling or pausing time tracking does not implicitly turn off
+blocking. An explicit choice to disable blocking is retained.
+
 A site allowed from 18:00 to 23:00 is blocked before 18:00 and from 23:00 onwards,
 using the device's local clock. A `facebook.com` rule includes `www.facebook.com`
 and other subdomains. Allowed URL exceptions and the separate blocking switch

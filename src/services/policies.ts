@@ -64,7 +64,8 @@ export function normalizeSettings(
   const merged = { ...DEFAULT_SETTINGS, ...saved };
   return {
     ...merged,
-    isBlockingEnabled: saved.isBlockingEnabled ?? saved.isTrackingEnabled ?? true,
+    // Tracking can be paused without implicitly disabling saved restrictions.
+    isBlockingEnabled: saved.isBlockingEnabled ?? true,
     idleSeconds: Math.max(
       60,
       Math.min(1800, Number(merged.idleSeconds) || 180),

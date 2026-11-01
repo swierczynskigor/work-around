@@ -1,22 +1,26 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-const OUT_DIR = path.join(__dirname, '../out');
+const firefox = process.argv.includes("--firefox");
+const target = firefox ? "Firefox / Zen" : "Chrome";
+const OUT_DIR = path.join(__dirname, firefox ? "../out-firefox" : "../out");
 const REQUIRED_FILES = [
-  'manifest.json',
-  'background.js',
-  'content.js',
-  'popup.html',
-  'options.html'
+  "manifest.json",
+  "background.js",
+  "content.js",
+  "popup.html",
+  "options.html",
 ];
 const FORBIDDEN_PATHS = [
-  '_next' // Chrome doesn't allow folders starting with _
+  "_next", // Chrome doesn't allow folders starting with _
 ];
 
-console.log('🔍 Validating build output for Chrome Extension compatibility...');
+console.log(`🔍 Validating build output for ${target}...`);
 
 if (!fs.existsSync(OUT_DIR)) {
-  console.error('❌ Error: "out" directory not found. Run "npm run build" first.');
+  console.error(
+    `❌ Error: Build directory not found. Run npm run ${firefox ? "build:firefox" : "build"} first.`,
+  );
   process.exit(1);
 }
 
@@ -35,14 +39,53 @@ for (const file of REQUIRED_FILES) {
 // 2. Check forbidden paths
 for (const forbidden of FORBIDDEN_PATHS) {
   if (fs.existsSync(path.join(OUT_DIR, forbidden))) {
-    console.error(`❌ Error: Found forbidden path "${forbidden}". Chrome will reject this.`);
+    console.error(
+      `❌ Error: Found forbidden path "${forbidden}". The static export has not been processed.`,
+    );
     hasError = true;
   } else {
     console.log(`✅ Validated no "${forbidden}" folder`);
   }
 }
 
+// Verify the browser-specific background model and every declared entry point.
 const manifestPath = path.join(OUT_DIR, "manifest.json");
+if (fs.existsSync(manifestPath)) {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const errors = [];
+  if (firefox) {
+    if (
+      manifest.background?.service_worker ||
+      !manifest.background?.scripts?.includes("background.js")
+    )
+      errors.push(
+        "Firefox requires background.scripts instead of service_worker",
+      );
+    if (!manifest.browser_specific_settings?.gecko?.id)
+      errors.push("Firefox requires a stable extension ID for sync storage");
+    if (manifest.minimum_chrome_version)
+      errors.push("Firefox manifest contains minimum_chrome_version");
+  } else if (manifest.background?.service_worker !== "background.js")
+    errors.push("Chrome requires its background service worker");
+  const entries = [
+    manifest.action?.default_popup,
+    manifest.options_ui?.page,
+    ...(manifest.background?.scripts || []),
+    manifest.background?.service_worker,
+    ...Object.values(manifest.icons || {}),
+    ...(manifest.content_scripts || []).flatMap((script) => script.js || []),
+  ].filter(Boolean);
+  for (const entry of entries)
+    if (!fs.existsSync(path.join(OUT_DIR, entry)))
+      errors.push(`Manifest references a missing file: ${entry}`);
+  for (const error of errors) {
+    console.error(`❌ ${error}`);
+    hasError = true;
+  }
+  if (!errors.length)
+    console.log(`✅ ${target} manifest and entry points are valid`);
+}
+
 // PNG exports must match the sizes advertised to the browser.
 if (fs.existsSync(manifestPath)) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
@@ -68,22 +111,22 @@ if (fs.existsSync(manifestPath)) {
 }
 
 // 3. Check for icons
-const iconDir = path.join(OUT_DIR, 'icons');
+const iconDir = path.join(OUT_DIR, "icons");
 if (fs.existsSync(iconDir)) {
-    const icons = fs.readdirSync(iconDir);
-    if (icons.length === 0) {
-        console.warn('⚠️ Warning: "icons" folder is empty.');
-    } else {
-        console.log(`✅ Found ${icons.length} icons in "icons/"`);
-    }
+  const icons = fs.readdirSync(iconDir);
+  if (icons.length === 0) {
+    console.warn('⚠️ Warning: "icons" folder is empty.');
+  } else {
+    console.log(`✅ Found ${icons.length} icons in "icons/"`);
+  }
 } else {
-    console.warn('⚠️ Warning: "icons" folder missing.');
+  console.warn('⚠️ Warning: "icons" folder missing.');
 }
 
 if (hasError) {
-  console.log('\n💥 Validation FAILED.');
+  console.log("\n💥 Validation FAILED.");
   process.exit(1);
 } else {
-  console.log('\n✨ Validation PASSED. Ready to load into Chrome.');
+  console.log(`\n✨ Validation PASSED. Ready to load into ${target}.`);
   process.exit(0);
 }

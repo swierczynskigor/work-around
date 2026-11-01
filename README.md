@@ -133,6 +133,46 @@ a chosen inactivity threshold, media tracking on/off, and a filled unsaved form
 before and after blocking. Native sleep events should be verified on each target
 operating system; automated tests simulate the timing and state transitions.
 
+## Firefox and Zen build
+
+```bash
+npm run build:firefox
+```
+
+This builds the current sources and creates two separate packages:
+
+- `out`: Chrome, with its Manifest V3 service worker.
+- `out-firefox`: Firefox 128+ and Zen, with an event-page background script,
+  the stable add-on ID `workaround@local`, and native promise-based `browser.*`
+  APIs in the background, content script and UI chunks.
+
+If the Chrome output is already up to date, package it without rebuilding Next.js:
+
+```bash
+npm run build:extension:firefox
+```
+
+Packaging cleans only `out-firefox`; the Chrome output remains intact. Both
+build directories are generated and excluded from Git. Validate either package:
+
+```bash
+node scripts/validate-build.js
+node scripts/validate-build.js --firefox
+```
+
+To load in Firefox or Zen:
+
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Choose **Load Temporary Add-on**.
+3. Select `out-firefox/manifest.json`.
+4. In `about:addons`, check WorkAround's website permissions if prompted.
+5. Refresh existing website tabs to load the new content script.
+
+This is an unsigned development build. Temporary installation lasts until the
+browser restarts; load it again afterwards. For updates, rebuild and choose
+**Reload** on the debugging page, then refresh the website tabs. A permanent
+installation requires a separately signed Firefox package.
+
 ## App icon
 
 The original WorkAround mark is `public/icons/workaround.svg`: a paused clock in
@@ -144,7 +184,7 @@ npm run build:icons
 ```
 
 This regenerates true-size PNG exports at 16, 32, 48, 96, 128, 256 and 512 pixels
-and a multi-resolution favicon from the SVG. Normal builds
+and a multi-resolution favicon from the SVG. Normal Chrome and Firefox builds
 run this step automatically. Edit the SVG to change the design; the PNGs and ICO
 are derived assets. Build validation checks manifest icon dimensions.
 

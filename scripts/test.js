@@ -1,7 +1,7 @@
 const { buildSync } = require("esbuild");
 const { mkdtempSync, rmSync } = require("node:fs");
 const { tmpdir } = require("node:os");
-const { join } = require("node:path");
+const { join, resolve } = require("node:path");
 const { spawnSync } = require("node:child_process");
 const directory = mkdtempSync(join(tmpdir(), "workaround-tests-"));
 try {
@@ -30,7 +30,10 @@ try {
     },
     logLevel: "silent",
   });
-  files.push(firefoxBackground);
+  files.push(
+    firefoxBackground,
+    resolve("tests/firefox-build.test.js"),
+  );
   const result = spawnSync(process.execPath, ["--test", ...files], {
     stdio: "inherit",
     env: { ...process.env, TZ: "Europe/Warsaw" },

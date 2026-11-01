@@ -82,3 +82,15 @@ the extension or editing extension data.
 background integration tests using Node's test runner. `npm run build` generates
 `out`, patches static resource paths and extracts inline scripts for extension
 CSP. `node scripts/validate-build.js` checks the final package.
+
+## Firefox / Zen packaging
+
+`npm run build:firefox` builds the application and then runs
+`scripts/build-firefox.js`. It copies the processed Chrome export into
+`out-firefox`, replaces the background service worker declaration with an event
+page, and supplies a stable Gecko extension ID for sync storage. Esbuild rewrites
+free `chrome` identifiers to `browser` in every JavaScript asset, including UI
+chunks and extracted hydration scripts. Strings and property names are preserved.
+This selects Firefox's native promise APIs without modifying the Chrome package
+or adding a runtime polyfill. Browser-specific background integration tests run
+with the same API transformation and a `moz-extension://` origin.

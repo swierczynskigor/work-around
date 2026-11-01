@@ -1,4 +1,5 @@
 "use client";
+import { AppIcon } from "@/components/AppIcon";
 
 import { useStats } from "@/hooks/useStats";
 import { useI18n } from "@/hooks/useI18n";
@@ -31,7 +32,7 @@ export default function PopupPage() {
   return (
     <div className="w-[350px] h-[500px] bg-background flex flex-col p-4">
       <header className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold">{t.popup.title}</h1>
+        <h1 className="text-xl font-bold flex items-center gap-2.5"><AppIcon />{t.popup.title}</h1>
         <Button variant="ghost" size="icon" onClick={openOptions}>
           <Settings className="h-5 w-5" />
         </Button>

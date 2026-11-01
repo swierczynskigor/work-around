@@ -42,6 +42,31 @@ for (const forbidden of FORBIDDEN_PATHS) {
   }
 }
 
+const manifestPath = path.join(OUT_DIR, "manifest.json");
+// PNG exports must match the sizes advertised to the browser.
+if (fs.existsSync(manifestPath)) {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const icons = { ...manifest.icons, ...manifest.action?.default_icon };
+  for (const [size, icon] of Object.entries(icons)) {
+    const iconPath = path.join(OUT_DIR, icon);
+    if (!icon.endsWith(".png") || !fs.existsSync(iconPath)) continue;
+    const png = fs.readFileSync(iconPath);
+    const validHeader =
+      png.length >= 24 &&
+      png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    if (
+      !validHeader ||
+      png.readUInt32BE(16) !== Number(size) ||
+      png.readUInt32BE(20) !== Number(size)
+    ) {
+      console.error(
+        `❌ Icon ${icon} does not match its declared ${size} × ${size} size`,
+      );
+      hasError = true;
+    }
+  }
+}
+
 // 3. Check for icons
 const iconDir = path.join(OUT_DIR, 'icons');
 if (fs.existsSync(iconDir)) {

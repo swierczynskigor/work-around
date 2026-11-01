@@ -65,3 +65,18 @@ To make changes and develop the project:
 ## 📄 License
 
 This project is available under the MIT License. See the [LICENSE](LICENSE) file for more details.
+
+## App icon
+
+The original WorkAround mark is `public/icons/workaround.svg`: a paused clock in
+a dark rounded tile, with a sky-blue time interval matching the focus interface.
+The popup, options header, toolbar icons and tab favicon share this mark.
+
+```bash
+npm run build:icons
+```
+
+This regenerates true-size PNG exports at 16, 32, 48, 96, 128, 256 and 512 pixels
+and a multi-resolution favicon from the SVG. Normal builds
+run this step automatically. Edit the SVG to change the design; the PNGs and ICO
+are derived assets. Build validation checks manifest icon dimensions.

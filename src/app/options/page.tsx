@@ -1,4 +1,5 @@
 "use client";
+import { AppIcon } from "@/components/AppIcon";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -233,7 +234,7 @@ export default function OptionsPage() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-8 max-w-3xl space-y-6">
         <header>
-          <h1 className="text-3xl font-bold">{t.options.title}</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-3"><AppIcon size={40} />{t.options.title}</h1>
           <p className="text-muted-foreground">{t.options.subtitle}</p>
         </header>
         
